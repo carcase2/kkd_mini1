@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../utils/picker_theme.dart';
 import '../widgets/history_tile.dart';
 import '../widgets/stat_card.dart';
 
@@ -343,41 +344,20 @@ class MasturbationScreen extends StatelessWidget {
 
   Future<void> _logCustom(BuildContext context) async {
     final now = DateTime.now();
-    final date = await showDatePicker(
+    final c = AppPalette.of(context);
+    final date = await showAppDatePicker(
       context: context,
       initialDate: now,
       firstDate: DateTime(2020),
       lastDate: now,
-      builder: (ctx, child) {
-        final c = AppPalette.of(ctx);
-        return Theme(
-          data: Theme.of(ctx).copyWith(
-            colorScheme: Theme.of(ctx).colorScheme.copyWith(
-              primary: c.check,
-              surface: c.surfaceElevated,
-            ),
-          ),
-          child: child!,
-        );
-      },
+      accent: c.check,
     );
     if (date == null || !context.mounted) return;
 
-    final time = await showTimePicker(
+    final time = await showAppTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(now),
-      builder: (ctx, child) {
-        final c = AppPalette.of(ctx);
-        return Theme(
-          data: Theme.of(ctx).copyWith(
-            colorScheme: Theme.of(ctx).colorScheme.copyWith(
-              primary: c.check,
-              surface: c.surfaceElevated,
-            ),
-          ),
-          child: child!,
-        );
-      },
+      accent: c.check,
     );
     if (time == null || !context.mounted) return;
 

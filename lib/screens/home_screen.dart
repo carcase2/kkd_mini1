@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
@@ -111,6 +112,8 @@ class HomeScreen extends StatelessWidget {
                     colors: c,
                     elapsed: fasting.elapsed,
                     target: fasting.targetDuration,
+                    startTime: fasting.startTime,
+                    showExpectedEnd: true,
                     onTap: () => onNavigate(1),
                   ),
                 ),
@@ -126,10 +129,22 @@ class HomeScreen extends StatelessWidget {
                     colors: c,
                     elapsed: abstinence.elapsed,
                     target: abstinence.targetDuration,
+                    startTime: abstinence.startTime,
                     onTap: () => onNavigate(2),
                   ),
                 ),
               ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: _CheckCard(
+                  colors: c,
+                  hasRecord: hasMasturbation,
+                  since: sinceLast,
+                  onTap: () => onNavigate(3),
+                ),
+              ),
+            ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -192,6 +207,25 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
+                      title: '약',
+                      icon: Icons.medication_rounded,
+                      color: c.warning,
+                      soft: c.warningSoft,
+                      colors: c,
+                      status: state.activeMedications.isEmpty &&
+                              state.activeMedicationSets.isEmpty
+                          ? '등록 없음'
+                          : state.medicationDueCount > 0
+                              ? '복용 가능 ${state.medicationDueCount}개'
+                              : _medicationHomeStatus(state),
+                      detail: state.activeMedications.isEmpty &&
+                              state.activeMedicationSets.isEmpty
+                          ? '약·세트로 복용 시간을 기록하세요'
+                          : _medicationHomeDetail(state),
+                      onTap: () => onNavigate(4),
+                    ),
+                    const SizedBox(height: 8),
+                    _QuickRow(
                       title: '통계',
                       icon: Icons.insights_rounded,
                       color: c.success,
@@ -201,7 +235,7 @@ class HomeScreen extends StatelessWidget {
                           '단식 성공 ${formatPercent(state.fastingSuccessRate)}',
                       detail:
                           '금욕 성공 ${formatPercent(state.abstinenceSuccessRate)}',
-                      onTap: () => onNavigate(4),
+                      onTap: () => onNavigate(5),
                     ),
                   ],
                 ),
@@ -220,6 +254,46 @@ class HomeScreen extends StatelessWidget {
     if (h < 12) return '좋은 아침이에요 ☀️';
     if (h < 18) return '오늘도 한 걸음씩 🔥';
     return '저녁 루틴 체크해볼까요 🌙';
+  }
+
+  String _medicationHomeStatus(AppState state) {
+    final meds = state.activeMedications.length;
+    final sets = state.activeMedicationSets.length;
+    if (sets > 0 && meds > 0) return '약 $meds · 세트 $sets';
+    if (sets > 0) return '세트 $sets개 관리 중';
+    return '약 $meds개 관리 중';
+  }
+
+  String _medicationHomeDetail(AppState state) {
+    Duration? soonest;
+    String? name;
+
+    for (final set in state.activeMedicationSets) {
+      final until = state.timeUntilNextSetDose(set);
+      if (until == null || until <= Duration.zero) {
+        return '${set.name} 세트 · 복용 가능';
+      }
+      if (soonest == null || until < soonest) {
+        soonest = until;
+        name = '${set.name} 세트';
+      }
+    }
+
+    for (final med in state.activeMedications) {
+      final until = state.timeUntilNextDose(med);
+      if (until == null || until <= Duration.zero) {
+        return '${med.name} · 복용 가능';
+      }
+      if (soonest == null || until < soonest) {
+        soonest = until;
+        name = med.name;
+      }
+    }
+
+    if (name != null && soonest != null) {
+      return '$name · ${formatDuration(soonest, short: true)} 후';
+    }
+    return '주기별 복용 시간을 기록하세요';
   }
 }
 
@@ -300,6 +374,126 @@ class _OverviewBanner extends StatelessWidget {
   }
 }
 
+/// 홈 카드 텍스트 — 길어도 잘리지 않게 축소
+class _CardLine extends StatelessWidget {
+  final String text;
+  final TextStyle style;
+
+  const _CardLine({
+    required this.text,
+    required this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          text,
+          style: style,
+          maxLines: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckCard extends StatelessWidget {
+  final AppPalette colors;
+  final bool hasRecord;
+  final Duration since;
+  final VoidCallback onTap;
+
+  const _CheckCard({
+    required this.colors,
+    required this.hasRecord,
+    required this.since,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = colors.check;
+    final soft = colors.checkSoft;
+
+    return Material(
+      color: soft,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.28)),
+            boxShadow: appCardShadow(colors),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: colors.surface.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: color.withValues(alpha: 0.2)),
+                ),
+                child: Icon(Icons.favorite_rounded, color: color, size: 22),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _CardLine(
+                      text: '체크',
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    _CardLine(
+                      text: hasRecord
+                          ? formatElapsedDayHour(since)
+                          : '아직 기록 없음',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    if (hasRecord) ...[
+                      const SizedBox(height: 2),
+                      _CardLine(
+                        text: '마지막 체크 이후',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: colors.textSecondary,
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: color, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ActiveCard extends StatelessWidget {
   final String title;
   final Color color;
@@ -307,6 +501,8 @@ class _ActiveCard extends StatelessWidget {
   final AppPalette colors;
   final Duration elapsed;
   final Duration? target;
+  final DateTime? startTime;
+  final bool showExpectedEnd;
   final VoidCallback onTap;
 
   const _ActiveCard({
@@ -316,84 +512,125 @@ class _ActiveCard extends StatelessWidget {
     required this.colors,
     required this.elapsed,
     required this.target,
+    this.startTime,
+    this.showExpectedEnd = false,
     required this.onTap,
   });
+
+  String? get _expectedEndLabel {
+    if (!showExpectedEnd || target == null || startTime == null) return null;
+    final end = startTime!.add(target!);
+    return '완료 예정 ${DateFormat('M월 d일 (E) a h:mm', 'ko').format(end)}';
+  }
+
+  String? get _remainingLabel {
+    if (!showExpectedEnd || target == null) return null;
+    if (elapsed >= target!) {
+      final pct = target!.inSeconds > 0
+          ? ((elapsed.inSeconds / target!.inSeconds) * 100).toStringAsFixed(0)
+          : null;
+      return pct != null ? '$pct% 완료' : '목표 시간 도달';
+    }
+    final left = target! - elapsed;
+    return '남은 시간 ${formatDuration(left, short: true)}';
+  }
 
   @override
   Widget build(BuildContext context) {
     final pct = target != null && target!.inSeconds > 0
-        ? ((elapsed.inSeconds / target!.inSeconds).clamp(0, 1) * 100)
-            .toStringAsFixed(0)
+        ? ((elapsed.inSeconds / target!.inSeconds) * 100).toStringAsFixed(0)
         : null;
+    final expectedEnd = _expectedEndLabel;
+    final remaining = _remainingLabel;
+    final reached = target != null && elapsed >= target!;
 
     return Material(
       color: soft,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: color.withValues(alpha: 0.28)),
             boxShadow: appCardShadow(colors),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               TimerRing(
                 elapsed: elapsed,
                 target: target,
                 color: color,
-                size: 64,
+                size: 48,
                 compact: true,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      title,
+                    _CardLine(
+                      text: title,
                       style: TextStyle(
                         color: color,
                         fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        height: 1.15,
+                        fontSize: 11,
+                        height: 1.1,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      formatDuration(elapsed, short: true),
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        height: 1.15,
-                        color: colors.textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      target != null
+                    _CardLine(
+                      text: formatDuration(elapsed, short: true),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    _CardLine(
+                      text: target != null
                           ? '목표 ${formatTargetDuration(target)}${pct != null ? ' · $pct%' : ''}'
                           : '자유 모드',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         color: colors.textSecondary,
-                        height: 1.15,
+                        height: 1.1,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
+                    if (remaining != null) ...[
+                      const SizedBox(height: 2),
+                      _CardLine(
+                        text: remaining,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: reached ? colors.success : color,
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
+                    if (expectedEnd != null && !reached) ...[
+                      const SizedBox(height: 2),
+                      _CardLine(
+                        text: expectedEnd,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: color,
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: color, size: 22),
+              Icon(Icons.chevron_right_rounded, color: color, size: 18),
             ],
           ),
         ),

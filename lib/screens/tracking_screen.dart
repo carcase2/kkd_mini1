@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../models/session.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
+import '../utils/abstinence_benefits.dart';
+import '../utils/fasting_benefits.dart';
 import '../utils/format.dart';
 import '../widgets/history_tile.dart';
 import '../widgets/preset_picker.dart';
@@ -56,8 +58,7 @@ class TrackingScreen extends StatelessWidget {
                 title: title,
                 accent: accent,
                 soft: soft,
-                onComplete: () => _confirmComplete(context, active),
-                onFail: () => _confirmFail(context, active),
+                onEnd: () => _confirmEnd(context, active),
                 onCancel: () => _confirmCancel(context, active),
               )
             : _IdleView(
@@ -99,78 +100,62 @@ class TrackingScreen extends StatelessWidget {
         );
   }
 
-  Future<void> _confirmComplete(
+  Future<void> _confirmEnd(
     BuildContext context,
     TrackingSession session,
   ) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('$title 성공으로 기록할까요?'),
-        content: Text(
-          session.isOpenEnded
-              ? '${formatDuration(session.elapsed, short: true)} 동안 유지했습니다.'
-              : session.isTargetReached
-                  ? '목표 시간을 달성했습니다! 👏'
-                  : '목표(${formatTargetDuration(session.targetDuration)}) 전에 종료합니다. 그래도 성공으로 기록할까요?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('성공 기록'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true && context.mounted) {
-      HapticFeedback.lightImpact();
-      await context.read<AppState>().completeSession(session.id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$title 성공! 잘했어요 🎉')),
-        );
-      }
-    }
-  }
+    final willSucceed = session.endStatus == SessionStatus.completed;
+    final pct = session.targetDuration != null &&
+            session.targetDuration!.inSeconds > 0
+        ? (session.progress * 100).toStringAsFixed(0)
+        : null;
 
-  Future<void> _confirmFail(
-    BuildContext context,
-    TrackingSession session,
-  ) async {
+    final String content;
+    if (session.isOpenEnded) {
+      content =
+          '${formatDuration(session.elapsed, short: true)} 동안 유지했습니다. 성공으로 기록할까요?';
+    } else if (willSucceed) {
+      content =
+          '목표 달성 · $pct% 완료. ${formatDuration(session.elapsed, short: true)} 진행했습니다. 성공으로 기록할까요?';
+    } else {
+      content =
+          '목표(${formatTargetDuration(session.targetDuration)}) 미달 · $pct%. '
+          '실패로 기록할까요?';
+    }
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('$title 실패로 기록할까요?'),
-        content: Text(
-          '${formatDuration(session.elapsed, short: true)} 진행 후 중단합니다. '
-          '실패도 기록하면 통계에 도움이 됩니다.',
-        ),
+        title: Text(willSucceed ? '$title 종료 · 성공' : '$title 종료 · 실패'),
+        content: Text(content),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소'),
+            child: const Text('계속하기'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            style: FilledButton.styleFrom(
+              backgroundColor:
+                  willSucceed ? AppColors.success : AppColors.danger,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('실패 기록'),
+            child: Text(willSucceed ? '성공 기록' : '실패 기록'),
           ),
         ],
       ),
     );
     if (ok == true && context.mounted) {
       HapticFeedback.mediumImpact();
-      await context.read<AppState>().failSession(session.id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$title 실패 기록됨. 다시 도전해요 💪')),
-        );
-      }
+      final status = await context.read<AppState>().endSession(session.id);
+      if (!context.mounted || status == null) return;
+      final success = status == SessionStatus.completed;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success ? '$title 성공! 잘했어요 🎉' : '$title 실패 기록됨. 다시 도전해요 💪',
+          ),
+        ),
+      );
     }
   }
 
@@ -208,8 +193,7 @@ class _ActiveView extends StatelessWidget {
   final String title;
   final Color accent;
   final Color soft;
-  final VoidCallback onComplete;
-  final VoidCallback onFail;
+  final VoidCallback onEnd;
   final VoidCallback onCancel;
 
   const _ActiveView({
@@ -217,8 +201,7 @@ class _ActiveView extends StatelessWidget {
     required this.title,
     required this.accent,
     required this.soft,
-    required this.onComplete,
-    required this.onFail,
+    required this.onEnd,
     required this.onCancel,
   });
 
@@ -226,6 +209,10 @@ class _ActiveView extends StatelessWidget {
   Widget build(BuildContext context) {
     final remaining = session.remaining;
     final reached = session.isTargetReached;
+    final pct = session.targetDuration != null &&
+            session.targetDuration!.inSeconds > 0
+        ? (session.progress * 100).toStringAsFixed(0)
+        : null;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -266,7 +253,7 @@ class _ActiveView extends StatelessWidget {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '목표 달성! 성공으로 기록할 수 있어요',
+                      '목표 달성 · $pct% 완료. 원하는 만큼 더 이어가다 종료하세요',
                       style: TextStyle(
                         color: AppColors.success,
                         fontWeight: FontWeight.w700,
@@ -295,36 +282,77 @@ class _ActiveView extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
+          if (reached && pct != null)
+            Text(
+              '$pct% 완료 · 목표 초과 진행 중',
+              style: TextStyle(
+                color: AppColors.success,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           const SizedBox(height: 8),
           Text(
             '시작 ${DateFormat('M/d (E) HH:mm', 'ko').format(session.startTime)}',
             style: TextStyle(color: AppColors.textMuted, fontSize: 13),
           ),
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              Expanded(
-                child: _ActionButton(
-                  label: '실패',
-                  icon: Icons.close_rounded,
-                  color: AppColors.danger,
-                  soft: AppColors.dangerSoft,
-                  onTap: onFail,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: _ActionButton(
-                  label: '성공 완료',
-                  icon: Icons.check_rounded,
-                  color: AppColors.success,
-                  soft: AppColors.successSoft,
-                  filled: true,
-                  onTap: onComplete,
-                ),
-              ),
-            ],
+          if (session.type == SessionType.fasting) ...[
+            const SizedBox(height: 24),
+            Builder(
+              builder: (context) {
+                final snap = fastingBenefitsFor(session.elapsed);
+                return _MilestoneBenefitsCard(
+                  headerTitle: '지금 몸의 변화',
+                  elapsed: session.elapsed,
+                  currentTitle: snap.current.title,
+                  currentSummary: snap.current.summary,
+                  currentBenefits: snap.current.benefits,
+                  nextTitle: snap.next?.title,
+                  nextSummary: snap.next?.summary,
+                  nextBenefits: snap.next?.benefits,
+                  untilNext: snap.untilNext,
+                  accent: accent,
+                  soft: soft,
+                );
+              },
+            ),
+          ],
+          if (session.type == SessionType.abstinence) ...[
+            const SizedBox(height: 24),
+            Builder(
+              builder: (context) {
+                final snap = abstinenceBenefitsFor(session.elapsed);
+                return _MilestoneBenefitsCard(
+                  headerTitle: '지금 나의 변화',
+                  elapsed: session.elapsed,
+                  currentTitle: snap.current.title,
+                  currentSummary: snap.current.summary,
+                  currentBenefits: snap.current.benefits,
+                  nextTitle: snap.next?.title,
+                  nextSummary: snap.next?.summary,
+                  nextBenefits: snap.next?.benefits,
+                  untilNext: snap.untilNext,
+                  accent: accent,
+                  soft: soft,
+                );
+              },
+            ),
+          ],
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: _ActionButton(
+              label: '종료',
+              icon: Icons.stop_rounded,
+              color: reached || session.isOpenEnded
+                  ? AppColors.success
+                  : AppColors.danger,
+              soft: reached || session.isOpenEnded
+                  ? AppColors.successSoft
+                  : AppColors.dangerSoft,
+              filled: true,
+              onTap: onEnd,
+            ),
           ),
           const SizedBox(height: 16),
           Container(
@@ -358,6 +386,210 @@ class _ActiveView extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 단식·금욕 공통: 현재 이점 / 다음 예상 이점 카드
+class _MilestoneBenefitsCard extends StatelessWidget {
+  final String headerTitle;
+  final Duration elapsed;
+  final String currentTitle;
+  final String currentSummary;
+  final String currentBenefits;
+  final String? nextTitle;
+  final String? nextSummary;
+  final String? nextBenefits;
+  final Duration? untilNext;
+  final Color accent;
+  final Color soft;
+
+  const _MilestoneBenefitsCard({
+    required this.headerTitle,
+    required this.elapsed,
+    required this.currentTitle,
+    required this.currentSummary,
+    required this.currentBenefits,
+    this.nextTitle,
+    this.nextSummary,
+    this.nextBenefits,
+    this.untilNext,
+    required this.accent,
+    required this.soft,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPalette.of(context);
+    final hasNext = nextTitle != null && nextBenefits != null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accent.withValues(alpha: 0.28)),
+        boxShadow: appCardShadow(c),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: soft,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.auto_awesome_rounded, color: accent, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      headerTitle,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: c.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      '경과 ${formatDuration(elapsed, short: true)} · $currentTitle',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: accent,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: soft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded, size: 16, color: accent),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '현재 이점 · $currentSummary',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: c.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  currentBenefits,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.45,
+                    color: c.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (hasNext) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: c.chipBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: c.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.flag_rounded,
+                        size: 16,
+                        color: c.textSecondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '다음 예상 이점 · $nextTitle',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: c.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (untilNext != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${formatDuration(untilNext!, short: true)} 후'
+                      '${nextSummary != null ? ' · $nextSummary' : ''}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: accent,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    nextBenefits!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.45,
+                      color: c.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 10),
+            Text(
+              '가장 긴 단계에 도달했어요. 지금의 루틴을 잘 유지해보세요.',
+              style: TextStyle(
+                fontSize: 12,
+                color: c.textMuted,
+                height: 1.4,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Text(
+            '※ 개인차가 큰 일반적인 설명이며 의료·진단 목적이 아닙니다.',
+            style: TextStyle(
+              fontSize: 10,
+              color: c.textMuted,
+              height: 1.3,
             ),
           ),
         ],

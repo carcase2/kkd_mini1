@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../utils/picker_theme.dart';
 
 /// 단식/금욕 시작 시트 — 목표 확인 + 시작 시각 지정
 class StartSessionResult {
@@ -21,10 +22,11 @@ Future<StartSessionResult?> showStartSessionSheet(
   required Color accent,
   required Duration? targetDuration,
 }) {
+  final c = AppPalette.of(context);
   return showModalBottomSheet<StartSessionResult>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.surfaceElevated,
+    backgroundColor: c.surfaceElevated,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -59,69 +61,79 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
   @override
   void initState() {
     super.initState();
-    _customStart = DateTime.now();
+    // 기본 제안: 1시간 전 (이미 시작한 단식을 기록하는 경우가 많음)
+    final now = DateTime.now();
+    _customStart = DateTime(now.year, now.month, now.day, now.hour, now.minute)
+        .subtract(const Duration(hours: 1));
   }
 
-  DateTime get _effectiveStart => _useNow ? DateTime.now() : _customStart;
+  DateTime get _effectiveStart {
+    if (_useNow) return DateTime.now();
+    return _clampToPast(_customStart);
+  }
+
+  /// 미래 시각이면 하루 전으로 보정, 그래도 미래면 지금으로
+  DateTime _clampToPast(DateTime value) {
+    final now = DateTime.now();
+    var v = DateTime(
+      value.year,
+      value.month,
+      value.day,
+      value.hour,
+      value.minute,
+    );
+    if (v.isAfter(now)) {
+      // 오늘 저녁처럼 미래로 잡힌 경우 → 어제 같은 시각으로
+      v = v.subtract(const Duration(days: 1));
+    }
+    if (v.isAfter(now)) {
+      v = now;
+    }
+    return v;
+  }
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    final date = await showDatePicker(
+    final date = await showAppDatePicker(
       context: context,
-      initialDate: _customStart,
+      initialDate: _customStart.isAfter(now) ? now : _customStart,
       firstDate: now.subtract(const Duration(days: 365)),
       lastDate: now,
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: ColorScheme.dark(
-            primary: widget.accent,
-            surface: AppColors.surfaceElevated,
-          ),
-        ),
-        child: child!,
-      ),
+      accent: widget.accent,
     );
     if (date == null || !mounted) return;
     setState(() {
-      _customStart = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        _customStart.hour,
-        _customStart.minute,
+      _useNow = false;
+      _customStart = _clampToPast(
+        DateTime(
+          date.year,
+          date.month,
+          date.day,
+          _customStart.hour,
+          _customStart.minute,
+        ),
       );
-      if (_customStart.isAfter(DateTime.now())) {
-        _customStart = DateTime.now();
-      }
     });
   }
 
   Future<void> _pickTime() async {
-    final time = await showTimePicker(
+    final time = await showAppTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_customStart),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: ColorScheme.dark(
-            primary: widget.accent,
-            surface: AppColors.surfaceElevated,
-          ),
-        ),
-        child: child!,
-      ),
+      accent: widget.accent,
     );
     if (time == null || !mounted) return;
     setState(() {
-      _customStart = DateTime(
-        _customStart.year,
-        _customStart.month,
-        _customStart.day,
-        time.hour,
-        time.minute,
+      _useNow = false;
+      _customStart = _clampToPast(
+        DateTime(
+          _customStart.year,
+          _customStart.month,
+          _customStart.day,
+          time.hour,
+          time.minute,
+        ),
       );
-      if (_customStart.isAfter(DateTime.now())) {
-        _customStart = DateTime.now();
-      }
     });
   }
 
@@ -131,15 +143,15 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppPalette.of(context);
     final targetLabel = formatTargetDuration(widget.targetDuration);
     final media = MediaQuery.of(context);
-    // 안드로이드 3버튼 네비게이션 바 + 키보드
     final navBar = media.viewPadding.bottom;
     final keyboard = media.viewInsets.bottom;
     final maxSheetHeight = media.size.height * 0.92;
+    final previewStart = _effectiveStart;
 
     return Padding(
-      // 시스템 네비게이션 바 높이만큼 시트 전체를 위로
       padding: EdgeInsets.only(bottom: navBar),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxSheetHeight - navBar),
@@ -148,7 +160,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
             24,
             16,
             24,
-            keyboard + 40, // 버튼 아래 여유 공간
+            keyboard + 40,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -159,7 +171,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.border,
+                    color: c.border,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -167,9 +179,10 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
               const SizedBox(height: 18),
               Text(
                 '${widget.title} 시작',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
+                  color: c.textPrimary,
                 ),
               ),
               const SizedBox(height: 6),
@@ -182,11 +195,12 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                 ),
               ),
               const SizedBox(height: 22),
-              const Text(
+              Text(
                 '시작 시각',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
+                  color: c.textPrimary,
                 ),
               ),
               const SizedBox(height: 10),
@@ -198,6 +212,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                       subtitle: '바로 시작',
                       selected: _useNow,
                       accent: widget.accent,
+                      colors: c,
                       onTap: () => setState(() => _useNow = true),
                     ),
                   ),
@@ -208,6 +223,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                       subtitle: '과거 시각',
                       selected: !_useNow,
                       accent: widget.accent,
+                      colors: c,
                       onTap: () => setState(() => _useNow = false),
                     ),
                   ),
@@ -218,9 +234,9 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: c.surface,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(color: c.border),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -233,6 +249,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                             .format(_customStart),
                         onTap: _pickDate,
                         accent: widget.accent,
+                        colors: c,
                       ),
                       const SizedBox(height: 10),
                       _PickerButton(
@@ -242,14 +259,16 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                             DateFormat('a h시 mm분', 'ko').format(_customStart),
                         onTap: _pickTime,
                         accent: widget.accent,
+                        colors: c,
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '선택한 시각부터 경과 시간이 계산됩니다',
+                        '선택한 시각부터 경과 시간이 계산됩니다.\n'
+                        '오늘 아직 안 된 시각을 고르면 어제 같은 시각으로 잡아요.',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textMuted,
-                          height: 1.3,
+                          color: c.textMuted,
+                          height: 1.35,
                         ),
                       ),
                     ],
@@ -257,7 +276,6 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                 ),
               ],
               const SizedBox(height: 18),
-              // 하단 시작 시각 요약 — overflow 방지
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
@@ -284,7 +302,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                           '시작 시각',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppColors.textMuted,
+                            color: c.textMuted,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -294,19 +312,21 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                     if (_useNow)
                       Text(
                         '지금 · ${DateFormat('M월 d일 (E) a h:mm', 'ko').format(DateTime.now())}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 14,
                           height: 1.35,
+                          color: c.textPrimary,
                         ),
                       )
                     else
                       Text(
-                        _formatStart(_customStart),
-                        style: const TextStyle(
+                        _formatStart(previewStart),
+                        style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 15,
                           height: 1.4,
+                          color: c.textPrimary,
                         ),
                       ),
                   ],
@@ -316,17 +336,19 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: widget.accent,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
                 onPressed: () {
+                  final start = _effectiveStart;
                   Navigator.pop(
                     context,
                     StartSessionResult(
                       targetDuration: widget.targetDuration,
-                      startTime: _effectiveStart,
+                      startTime: start,
                     ),
                   );
                 },
@@ -338,7 +360,6 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                   ),
                 ),
               ),
-              // 네비 바/제스처 영역과 겹치지 않도록 하단 여백
               const SizedBox(height: 12),
             ],
           ),
@@ -353,6 +374,7 @@ class _ModeChip extends StatelessWidget {
   final String subtitle;
   final bool selected;
   final Color accent;
+  final AppPalette colors;
   final VoidCallback onTap;
 
   const _ModeChip({
@@ -360,13 +382,14 @@ class _ModeChip extends StatelessWidget {
     required this.subtitle,
     required this.selected,
     required this.accent,
+    required this.colors,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? accent.withValues(alpha: 0.15) : AppColors.surface,
+      color: selected ? accent.withValues(alpha: 0.15) : colors.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -376,7 +399,7 @@ class _ModeChip extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selected ? accent : AppColors.border,
+              color: selected ? accent : colors.border,
               width: selected ? 1.5 : 1,
             ),
           ),
@@ -388,7 +411,7 @@ class _ModeChip extends StatelessWidget {
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 15,
-                  color: selected ? accent : AppColors.textPrimary,
+                  color: selected ? accent : colors.textPrimary,
                   height: 1.2,
                 ),
               ),
@@ -397,7 +420,7 @@ class _ModeChip extends StatelessWidget {
                 subtitle,
                 style: TextStyle(
                   fontSize: 11,
-                  color: AppColors.textMuted,
+                  color: colors.textMuted,
                   height: 1.2,
                 ),
               ),
@@ -415,6 +438,7 @@ class _PickerButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final Color accent;
+  final AppPalette colors;
 
   const _PickerButton({
     required this.icon,
@@ -422,12 +446,13 @@ class _PickerButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     required this.accent,
+    required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceElevated,
+      color: colors.surfaceElevated,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -437,7 +462,7 @@ class _PickerButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: colors.border),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -461,7 +486,7 @@ class _PickerButton extends StatelessWidget {
                       caption,
                       style: TextStyle(
                         fontSize: 11,
-                        color: AppColors.textMuted,
+                        color: colors.textMuted,
                         fontWeight: FontWeight.w600,
                         height: 1.2,
                       ),
@@ -469,10 +494,11 @@ class _PickerButton extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       label,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 14,
                         height: 1.3,
+                        color: colors.textPrimary,
                       ),
                     ),
                   ],

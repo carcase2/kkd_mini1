@@ -34,15 +34,21 @@ class TrackingSession {
     return left.isNegative ? Duration.zero : left;
   }
 
+  /// 목표 대비 진행률. 목표 초과 시 1.0 초과 가능 (예: 1.1 = 110%).
   double get progress {
     if (targetDuration == null || targetDuration!.inSeconds == 0) return 0;
-    final p = elapsed.inSeconds / targetDuration!.inSeconds;
-    return p.clamp(0.0, 1.0);
+    return elapsed.inSeconds / targetDuration!.inSeconds;
   }
 
   bool get isTargetReached {
     if (targetDuration == null) return false;
     return elapsed >= targetDuration!;
+  }
+
+  /// 종료 시 성공/실패. 자유 모드·목표 달성 = 성공, 미달 = 실패.
+  SessionStatus get endStatus {
+    if (isOpenEnded || isTargetReached) return SessionStatus.completed;
+    return SessionStatus.failed;
   }
 
   TrackingSession copyWith({

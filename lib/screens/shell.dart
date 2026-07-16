@@ -8,6 +8,7 @@ import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'masturbation_screen.dart';
+import 'medication_screen.dart';
 import 'stats_screen.dart';
 import 'tracking_screen.dart';
 
@@ -49,6 +50,7 @@ class _AppShellState extends State<AppShell> {
       const TrackingScreen(type: SessionType.fasting),
       const TrackingScreen(type: SessionType.abstinence),
       const MasturbationScreen(),
+      const MedicationScreen(),
       const StatsScreen(),
     ];
 
@@ -100,6 +102,11 @@ class _AppShellState extends State<AppShell> {
               icon: Icon(Icons.favorite_border_rounded, color: c.textMuted),
               selectedIcon: Icon(Icons.favorite_rounded, color: c.check),
               label: '체크',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.medication_outlined, color: c.textMuted),
+              selectedIcon: Icon(Icons.medication_rounded, color: c.warning),
+              label: '약',
             ),
             NavigationDestination(
               icon: Icon(Icons.insights_outlined, color: c.textMuted),

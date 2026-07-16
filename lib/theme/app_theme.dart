@@ -345,9 +345,41 @@ class AppTheme {
         backgroundColor: p.surfaceElevated,
         headerBackgroundColor: p.fasting,
         headerForegroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return Colors.white;
+          if (states.contains(WidgetState.disabled)) return p.textMuted;
+          return p.textPrimary;
+        }),
+        todayForegroundColor: WidgetStateProperty.all(p.fasting),
+        todayBorder: BorderSide(color: p.fasting),
       ),
       timePickerTheme: TimePickerThemeData(
         backgroundColor: p.surfaceElevated,
+        hourMinuteTextColor: p.textPrimary,
+        hourMinuteColor: p.chipBg,
+        dayPeriodTextColor: p.textPrimary,
+        dayPeriodColor: p.chipBg,
+        dialBackgroundColor: p.chipBg,
+        dialHandColor: p.fasting,
+        dialTextColor: WidgetStateColor.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return Colors.white;
+          return p.textPrimary;
+        }),
+        entryModeIconColor: p.textSecondary,
+        helpTextStyle: TextStyle(
+          color: p.textSecondary,
+          fontWeight: FontWeight.w600,
+        ),
+        hourMinuteTextStyle: TextStyle(
+          color: p.textPrimary,
+          fontSize: 40,
+          fontWeight: FontWeight.w700,
+        ),
+        dayPeriodTextStyle: TextStyle(
+          color: p.textPrimary,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

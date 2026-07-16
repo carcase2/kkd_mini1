@@ -31,7 +31,9 @@ class TimerRing extends StatelessWidget {
     final isSmall = compact || size < 120;
     final progress = target == null || target!.inSeconds == 0
         ? null
-        : (elapsed.inSeconds / target!.inSeconds).clamp(0.0, 1.0);
+        : elapsed.inSeconds / target!.inSeconds;
+    // 링은 한 바퀴(100%)까지만 채우고, 숫자는 110%처럼 초과 표시
+    final ringProgress = progress?.clamp(0.0, 1.0);
 
     final pad = isSmall ? size * 0.12 : 24.0;
     final timeStyle = TextStyle(
@@ -52,9 +54,10 @@ class TimerRing extends StatelessWidget {
           CustomPaint(
             size: Size(size, size),
             painter: _RingPainter(
-              progress: progress,
+              progress: ringProgress,
               color: color,
               trackColor: c.border,
+              overtime: progress != null && progress > 1.0,
             ),
           ),
           Padding(
@@ -100,10 +103,14 @@ class TimerRing extends StatelessWidget {
                     if (progress != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        '${(progress * 100).toStringAsFixed(0)}%',
+                        progress > 1.0
+                            ? '${(progress * 100).toStringAsFixed(0)}% 완료'
+                            : '${(progress * 100).toStringAsFixed(0)}%',
                         style: TextStyle(
                           fontSize: 12,
-                          color: c.textMuted,
+                          fontWeight:
+                              progress > 1.0 ? FontWeight.w700 : FontWeight.w400,
+                          color: progress > 1.0 ? color : c.textMuted,
                         ),
                         maxLines: 1,
                       ),
@@ -134,11 +141,13 @@ class _RingPainter extends CustomPainter {
   final double? progress;
   final Color color;
   final Color trackColor;
+  final bool overtime;
 
   _RingPainter({
     required this.progress,
     required this.color,
     required this.trackColor,
+    this.overtime = false,
   });
 
   @override
@@ -159,13 +168,15 @@ class _RingPainter extends CustomPainter {
     final sweep =
         progress == null ? math.pi * 2 : math.pi * 2 * progress!;
 
+    final ringColor = overtime ? AppColors.success : color;
+
     final gradient = SweepGradient(
       startAngle: -math.pi / 2,
       endAngle: -math.pi / 2 + math.pi * 2,
       colors: [
-        color.withValues(alpha: 0.4),
-        color,
-        color.withValues(alpha: 0.9),
+        ringColor.withValues(alpha: 0.4),
+        ringColor,
+        ringColor.withValues(alpha: 0.9),
       ],
       stops: const [0.0, 0.5, 1.0],
       transform: const GradientRotation(-math.pi / 2),
@@ -201,6 +212,7 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(covariant _RingPainter oldDelegate) {
     return oldDelegate.progress != progress ||
         oldDelegate.color != color ||
-        oldDelegate.trackColor != trackColor;
+        oldDelegate.trackColor != trackColor ||
+        oldDelegate.overtime != overtime;
   }
 }
