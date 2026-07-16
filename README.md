@@ -1,6 +1,6 @@
-# discipline_tracker
+# kkd_mini1
 
-A new Flutter project.
+A Flutter discipline tracker (단식·금욕·복약 트래킹).
 
 ## Getting Started
 
