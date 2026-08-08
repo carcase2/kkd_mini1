@@ -591,21 +591,24 @@ class AppState extends ChangeNotifier {
       await NotificationService.instance.rescheduleActiveSessions(_sessions);
     }
 
-    // 로컬 로드 후 Supabase와 맞추기 (실패해도 로컬로 계속)
-    if (_cloudSyncEnabled) {
-      try {
-        final applied = await _cloud.syncAfterLocalLoad(_storage);
-        if (applied) {
-          await _loadFromStorage();
-          notifyListeners();
-          if (_sessionNotificationsEnabled) {
-            await NotificationService.instance
-                .rescheduleActiveSessions(_sessions);
-          }
+    await syncCloud();
+  }
+
+  /// 로그인 직후·앱 시작 시 클라우드와 맞춤
+  Future<void> syncCloud() async {
+    if (!_cloudSyncEnabled) return;
+    try {
+      final applied = await _cloud.syncAfterLocalLoad(_storage);
+      if (applied) {
+        await _loadFromStorage();
+        notifyListeners();
+        if (_sessionNotificationsEnabled) {
+          await NotificationService.instance
+              .rescheduleActiveSessions(_sessions);
         }
-      } catch (_) {
-        // 오프라인이면 무시
       }
+    } catch (_) {
+      // 오프라인이면 무시
     }
   }
 

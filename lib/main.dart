@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'providers/app_state.dart';
 import 'screens/lock_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/shell.dart';
 import 'services/notification_service.dart';
 import 'services/supabase_sync_service.dart';
@@ -16,13 +20,11 @@ Future<void> main() async {
   await initializeDateFormatting('ko');
   await AppVersion.load();
   await NotificationService.instance.init();
-  // 실패해도 앱은 로컬로 동작
   await SupabaseSyncService.instance.init();
 
   final appState = AppState();
   await appState.load();
 
-  // 기본 라이트 팔레트 바인딩
   AppColors.bind(
     appState.isDarkMode ? AppPalette.dark : AppPalette.light,
   );
@@ -47,26 +49,44 @@ class DisciplineApp extends StatefulWidget {
 
 class _DisciplineAppState extends State<DisciplineApp>
     with WidgetsBindingObserver {
+  StreamSubscription<AuthState>? _authSub;
+  bool _loggedIn = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loggedIn = SupabaseSyncService.instance.isLoggedIn;
+    _authSub = SupabaseSyncService.instance.authStateChanges.listen((event) {
+      final loggedIn = SupabaseSyncService.instance.isLoggedIn;
+      if (!mounted) return;
+      setState(() => _loggedIn = loggedIn);
+      if (loggedIn) {
+        // 로그인 직후 클라우드 동기화
+        context.read<AppState>().syncCloud();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _authSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 백그라운드로 나갈 때만 자동 잠금
-    // (inactive는 알림창·다이얼로그에서도 발생해 제외)
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       context.read<AppState>().onAppPaused();
     }
+  }
+
+  Future<void> _onLoggedIn() async {
+    await context.read<AppState>().syncCloud();
+    if (!mounted) return;
+    setState(() => _loggedIn = true);
   }
 
   @override
@@ -76,6 +96,15 @@ class _DisciplineAppState extends State<DisciplineApp>
     final isDark = themeMode == ThemeMode.dark;
     final locked = appState.isLocked;
 
+    Widget home;
+    if (!_loggedIn) {
+      home = LoginScreen(onLoggedIn: _onLoggedIn);
+    } else if (locked) {
+      home = const LockScreen();
+    } else {
+      home = const AppShell();
+    }
+
     return MaterialApp(
       title: '절제',
       debugShowCheckedModeBanner: false,
@@ -83,14 +112,13 @@ class _DisciplineAppState extends State<DisciplineApp>
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       builder: (context, child) {
-        // 테마 변경 시 전역 AppColors 동기화
         final palette = Theme.of(context).extension<AppPalette>() ??
             (isDark ? AppPalette.dark : AppPalette.light);
         AppColors.bind(palette);
         SystemChrome.setSystemUIOverlayStyle(AppTheme.overlay(isDark));
         return child ?? const SizedBox.shrink();
       },
-      home: locked ? const LockScreen() : const AppShell(),
+      home: home,
     );
   }
 }

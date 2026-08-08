@@ -1,7 +1,7 @@
 {
-  "version": "1.0.5",
-  "build": 6,
-  "message": "업데이트 안내 · 잠금 PIN 4칸 UI · Supabase 동기화",
+  "version": "1.0.6",
+  "build": 7,
+  "message": "이메일 로그인 · 재설치 후 클라우드 복원",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

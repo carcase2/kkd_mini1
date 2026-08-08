@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
 import '../services/backup_service.dart';
+import '../services/supabase_sync_service.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_version.dart';
@@ -132,28 +133,74 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(width: 4),
                         PopupMenuButton<String>(
                           tooltip: '더보기',
-                          onSelected: (v) {
+                          onSelected: (v) async {
                             if (v == 'backup') _showBackupSheet(context);
                             if (v == 'lock') _showLockSettings(context);
                             if (v == 'lock_now') {
                               context.read<AppState>().lockApp();
                             }
+                            if (v == 'logout') {
+                              final ok = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('로그아웃'),
+                                  content: const Text(
+                                    '로그아웃해도 이 기기 데이터는 남습니다.\n'
+                                    '다른 기기·재설치 복원은 같은 계정으로 다시 로그인하세요.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('취소'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, true),
+                                      child: const Text('로그아웃'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (ok == true && context.mounted) {
+                                await SupabaseSyncService.instance.signOut();
+                              }
+                            }
                           },
-                          itemBuilder: (ctx) => [
-                            const PopupMenuItem(
-                              value: 'backup',
-                              child: Text('백업 · 내보내기'),
-                            ),
-                            const PopupMenuItem(
-                              value: 'lock',
-                              child: Text('잠금 · 알림 설정'),
-                            ),
-                            if (state.lockEnabled)
-                              const PopupMenuItem(
-                                value: 'lock_now',
-                                child: Text('지금 잠그기'),
+                          itemBuilder: (ctx) {
+                            final email =
+                                SupabaseSyncService.instance.email ?? '계정';
+                            return [
+                              PopupMenuItem(
+                                enabled: false,
+                                child: Text(
+                                  email,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: c.textMuted,
+                                  ),
+                                ),
                               ),
-                          ],
+                              const PopupMenuItem(
+                                value: 'backup',
+                                child: Text('백업 · 내보내기'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'lock',
+                                child: Text('잠금 · 알림 설정'),
+                              ),
+                              if (state.lockEnabled)
+                                const PopupMenuItem(
+                                  value: 'lock_now',
+                                  child: Text('지금 잠그기'),
+                                ),
+                              const PopupMenuItem(
+                                value: 'logout',
+                                child: Text('로그아웃'),
+                              ),
+                            ];
+                          },
                           child: Container(
                             width: 46,
                             height: 46,

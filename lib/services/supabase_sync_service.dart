@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import 'storage_service.dart';
 
-/// 혼자 쓰는 전제: 익명 로그인 + app_data 한 행에 백업 JSON 동기화
+/// 이메일 로그인 사용자별 app_data JSON 동기화
 class SupabaseSyncService {
   SupabaseSyncService._();
   static final instance = SupabaseSyncService._();
@@ -16,6 +16,19 @@ class SupabaseSyncService {
 
   SupabaseClient get _client => Supabase.instance.client;
 
+  User? get currentUser => _client.auth.currentUser;
+
+  bool get isLoggedIn {
+    final user = currentUser;
+    if (user == null) return false;
+    // 익명 세션은 로그인으로 취급하지 않음
+    return user.isAnonymous != true;
+  }
+
+  String? get email => currentUser?.email;
+
+  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
+
   Future<void> init() async {
     if (_ready) return;
     try {
@@ -23,7 +36,11 @@ class SupabaseSyncService {
         url: SupabaseConfig.url,
         publishableKey: SupabaseConfig.publishableKey,
       );
-      await _ensureSignedIn();
+      // 예전 익명 세션은 버리고 로그인 화면으로
+      final user = _client.auth.currentUser;
+      if (user != null && user.isAnonymous == true) {
+        await _client.auth.signOut();
+      }
       _ready = true;
     } catch (e, st) {
       debugPrint('Supabase init failed: $e\n$st');
@@ -31,18 +48,42 @@ class SupabaseSyncService {
     }
   }
 
-  Future<void> _ensureSignedIn() async {
-    final session = _client.auth.currentSession;
-    if (session != null) return;
-    await _client.auth.signInAnonymously();
+  Future<void> signIn({
+    required String email,
+    required String password,
+  }) async {
+    if (!_ready) await init();
+    await _client.auth.signInWithPassword(
+      email: email.trim(),
+      password: password,
+    );
+  }
+
+  Future<void> signUp({
+    required String email,
+    required String password,
+  }) async {
+    if (!_ready) await init();
+    final res = await _client.auth.signUp(
+      email: email.trim(),
+      password: password,
+    );
+    // autoconfirm 꺼져 있으면 세션이 없을 수 있음 → 바로 로그인 시도
+    if (res.session == null) {
+      await signIn(email: email, password: password);
+    }
+  }
+
+  Future<void> signOut() async {
+    if (!_ready) return;
+    await _client.auth.signOut();
   }
 
   /// 원격 payload와 updated_at. 없으면 null.
   Future<({Map<String, dynamic> payload, DateTime updatedAt})?> pull() async {
-    if (!_ready) return null;
+    if (!_ready || !isLoggedIn) return null;
     try {
-      await _ensureSignedIn();
-      final uid = _client.auth.currentUser?.id;
+      final uid = currentUser?.id;
       if (uid == null) return null;
 
       final row = await _client
@@ -67,10 +108,9 @@ class SupabaseSyncService {
   }
 
   Future<bool> push(Map<String, dynamic> backupRoot) async {
-    if (!_ready) return false;
+    if (!_ready || !isLoggedIn) return false;
     try {
-      await _ensureSignedIn();
-      final uid = _client.auth.currentUser?.id;
+      final uid = currentUser?.id;
       if (uid == null) return false;
 
       await _client.from(_table).upsert({
@@ -88,31 +128,54 @@ class SupabaseSyncService {
   /// 로컬 로드 후: 원격이 더 최신이면 import 후 true, 그 외 push하고 false
   Future<bool> syncAfterLocalLoad(StorageService storage) async {
     if (!_ready) await init();
-    if (!_ready) return false;
+    if (!_ready || !isLoggedIn) return false;
 
     final remote = await pull();
     final local = await storage.exportBackup();
     final localExportedAt =
         DateTime.tryParse('${local['exportedAt']}')?.toUtc();
+    final localEmpty = _isEffectivelyEmpty(local);
 
     if (remote == null) {
-      await push(local);
+      if (!localEmpty) await push(local);
       return false;
+    }
+
+    final remoteEmpty = _isEffectivelyEmpty(remote.payload);
+    // 재설치 직후처럼 로컬이 비어 있으면 원격 우선 (exportedAt=now 로 덮어쓰기 방지)
+    if (localEmpty && !remoteEmpty) {
+      await storage.importBackup(remote.payload);
+      return true;
     }
 
     final remoteExportedAt =
         DateTime.tryParse('${remote.payload['exportedAt']}')?.toUtc() ??
             remote.updatedAt;
 
-    final useRemote = localExportedAt == null ||
-        remoteExportedAt.isAfter(localExportedAt);
+    final useRemote = !remoteEmpty &&
+        (localExportedAt == null || remoteExportedAt.isAfter(localExportedAt));
 
     if (useRemote) {
       await storage.importBackup(remote.payload);
-      return true; // 로컬이 원격으로 갱신됨
+      return true;
     }
 
-    await push(local);
+    if (!localEmpty) await push(local);
     return false;
+  }
+
+  bool _isEffectivelyEmpty(Map<String, dynamic> root) {
+    final data = root['data'];
+    if (data is! Map) return true;
+    final map = Map<String, dynamic>.from(data);
+    bool emptyList(dynamic v) => v is! List || v.isEmpty;
+    return emptyList(map['sessions']) &&
+        emptyList(map['masturbationLogs']) &&
+        emptyList(map['medications']) &&
+        emptyList(map['medicationDoses']) &&
+        emptyList(map['medicationSets']) &&
+        emptyList(map['medicationSetDoses']) &&
+        emptyList(map['books']) &&
+        emptyList(map['readingLogs']);
   }
 }
