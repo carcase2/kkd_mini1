@@ -24,6 +24,7 @@ class StorageService {
   static const _lastBackupAtKey = 'last_backup_at';
   static const _autoBackupEnabledKey = 'auto_backup_enabled';
   static const _autoBackupIntervalDaysKey = 'auto_backup_interval_days';
+  static const _sessionNotificationsKey = 'session_notifications_enabled';
   static const defaultPin = '1850017';
   static const defaultAutoBackupIntervalDays = 7;
 
@@ -261,6 +262,17 @@ class StorageService {
       _autoBackupIntervalDaysKey,
       days.clamp(1, 90),
     );
+  }
+
+  /// 단식·금욕 마일스톤 알림. 기본: true
+  Future<bool> loadSessionNotificationsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_sessionNotificationsKey) ?? true;
+  }
+
+  Future<void> saveSessionNotificationsEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_sessionNotificationsKey, enabled);
   }
 
   /// 전체 데이터 백업 (JSON 맵)

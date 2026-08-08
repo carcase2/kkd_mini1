@@ -7,11 +7,15 @@ import 'providers/app_state.dart';
 import 'screens/lock_screen.dart';
 import 'screens/shell.dart';
 import 'services/backup_service.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
+import 'utils/app_version.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ko');
+  await AppVersion.load();
+  await NotificationService.instance.init();
 
   final appState = AppState();
   await appState.load();

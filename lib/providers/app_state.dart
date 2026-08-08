@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/book.dart';
 import '../models/medication.dart';
 import '../models/session.dart';
+import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 
 class AppState extends ChangeNotifier {
@@ -35,6 +36,9 @@ class AppState extends ChangeNotifier {
   int _autoBackupIntervalDays =
       StorageService.defaultAutoBackupIntervalDays;
 
+  // 세션 알림 (중간 / 10% / 완료)
+  bool _sessionNotificationsEnabled = true;
+
   bool get isLoaded => _loaded;
   ThemeMode get themeMode => _themeMode;
   bool get isDarkMode => _themeMode == ThemeMode.dark;
@@ -45,6 +49,7 @@ class AppState extends ChangeNotifier {
   DateTime? get lastBackupAt => _lastBackupAt;
   bool get autoBackupEnabled => _autoBackupEnabled;
   int get autoBackupIntervalDays => _autoBackupIntervalDays;
+  bool get sessionNotificationsEnabled => _sessionNotificationsEnabled;
 
   /// 주기 백업이 필요한지
   bool get isAutoBackupDue {
@@ -601,10 +606,18 @@ class AppState extends ChangeNotifier {
     _lastBackupAt = await _storage.loadLastBackupAt();
     _autoBackupEnabled = await _storage.loadAutoBackupEnabled();
     _autoBackupIntervalDays = await _storage.loadAutoBackupIntervalDays();
+    _sessionNotificationsEnabled =
+        await _storage.loadSessionNotificationsEnabled();
+    NotificationService.instance.setEnabled(_sessionNotificationsEnabled);
     // 잠금 기능 켜져 있으면 앱 시작 시 잠금
     _isLocked = _lockEnabled;
     _loaded = true;
     notifyListeners();
+
+    // 활성 세션 알림 재예약
+    if (_sessionNotificationsEnabled) {
+      await NotificationService.instance.rescheduleActiveSessions(_sessions);
+    }
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -729,6 +742,19 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setSessionNotificationsEnabled(bool enabled) async {
+    _sessionNotificationsEnabled = enabled;
+    await _storage.saveSessionNotificationsEnabled(enabled);
+    NotificationService.instance.setEnabled(enabled);
+    if (enabled) {
+      await NotificationService.instance.requestPermission();
+      await NotificationService.instance.rescheduleActiveSessions(_sessions);
+    } else {
+      await NotificationService.instance.cancelAllSessionAlarms();
+    }
+    notifyListeners();
+  }
+
   Future<void> _persistSessions() async {
     await _storage.saveSessions(_sessions);
   }
@@ -798,6 +824,10 @@ class AppState extends ChangeNotifier {
     );
     _sessions.add(session);
     await _persistSessions();
+    if (_sessionNotificationsEnabled && targetDuration != null) {
+      await NotificationService.instance.requestPermission();
+      await NotificationService.instance.scheduleSessionMilestones(session);
+    }
     notifyListeners();
   }
 
@@ -812,6 +842,7 @@ class AppState extends ChangeNotifier {
       status: SessionStatus.completed,
     );
     await _persistSessions();
+    await NotificationService.instance.cancelForType(s.type);
     notifyListeners();
   }
 
@@ -826,6 +857,7 @@ class AppState extends ChangeNotifier {
       status: SessionStatus.failed,
     );
     await _persistSessions();
+    await NotificationService.instance.cancelForType(s.type);
     notifyListeners();
   }
 
@@ -842,6 +874,7 @@ class AppState extends ChangeNotifier {
       status: status,
     );
     await _persistSessions();
+    await NotificationService.instance.cancelForType(s.type);
     notifyListeners();
     return status;
   }
@@ -857,6 +890,7 @@ class AppState extends ChangeNotifier {
       status: SessionStatus.cancelled,
     );
     await _persistSessions();
+    await NotificationService.instance.cancelForType(s.type);
     notifyListeners();
   }
 

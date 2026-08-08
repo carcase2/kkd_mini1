@@ -118,10 +118,12 @@ class BackupService {
   /// JSON 파일 생성 후 시스템 공유 시트 열기 (+ 로컬에도 저장)
   static Future<void> exportToFile(AppState state) async {
     final file = await saveLocalBackup(state, prefix: 'export');
-    await Share.shareXFiles(
-      [XFile(file.path, mimeType: 'application/json')],
-      subject: '절제 앱 백업',
-      text: '절제 앱 데이터 백업 파일입니다.',
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path, mimeType: 'application/json')],
+        subject: '절제 앱 백업',
+        text: '절제 앱 데이터 백업 파일입니다.',
+      ),
     );
   }
 

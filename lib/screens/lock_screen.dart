@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
+import '../utils/app_version.dart';
 
 /// 앱 잠금 해제 화면 (PIN 입력)
 class LockScreen extends StatefulWidget {
@@ -112,6 +113,15 @@ class _LockScreenState extends State<LockScreen>
                 fontSize: 26,
                 fontWeight: FontWeight.w900,
                 color: c.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              AppVersion.label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: c.textMuted,
               ),
             ),
             const SizedBox(height: 8),

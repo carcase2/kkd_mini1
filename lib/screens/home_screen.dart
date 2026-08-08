@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../services/backup_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/app_version.dart';
 import '../utils/format.dart';
 import '../widgets/timer_ring.dart';
 
@@ -39,14 +40,31 @@ class HomeScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '절제',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.6,
-                              color: c.textPrimary,
-                            ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '절제',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.6,
+                                  color: c.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Text(
+                                  AppVersion.label,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: c.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -289,7 +307,21 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                child: Center(
+                  child: Text(
+                    AppVersion.label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: c.textMuted.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1039,6 +1071,33 @@ class _LockSettingsSheet extends StatelessWidget {
             onChanged: state.lockEnabled
                 ? (v) => context.read<AppState>().setAutoLockEnabled(v)
                 : null,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '세션 알림',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: c.textPrimary,
+            ),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              '단식·금욕 진행 알림',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: c.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              '절반 지남 · 10% 남음 · 목표 완료 시 알림',
+              style: TextStyle(fontSize: 12, color: c.textMuted),
+            ),
+            value: state.sessionNotificationsEnabled,
+            activeThumbColor: c.fasting,
+            onChanged: (v) =>
+                context.read<AppState>().setSessionNotificationsEnabled(v),
           ),
           const SizedBox(height: 8),
           ListTile(
