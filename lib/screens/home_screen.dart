@@ -5,15 +5,38 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
 import '../services/backup_service.dart';
+import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_version.dart';
 import '../utils/format.dart';
 import '../widgets/timer_ring.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex) onNavigate;
 
   const HomeScreen({super.key, required this.onNavigate});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  AppUpdateInfo? _update;
+  bool _updateDismissed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUpdate();
+  }
+
+  Future<void> _checkUpdate() async {
+    final info = await UpdateService.checkForUpdate();
+    if (!mounted || info == null) return;
+    setState(() => _update = info);
+  }
+
+  void _goTo(int index) => widget.onNavigate(index);
 
   @override
   Widget build(BuildContext context) {
@@ -24,105 +47,152 @@ class HomeScreen extends StatelessWidget {
     final reading = state.activeReading;
     final sinceLast = state.timeSinceLastMasturbation;
     final hasMasturbation = state.lastMasturbation != null;
+    final todayLabel =
+        DateFormat('yyyy년 M월 d일 (E)', 'ko').format(DateTime.now());
 
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
+            // 업데이트 배너
+            if (_update != null && !_updateDismissed)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: _UpdateBanner(
+                    info: _update!,
+                    colors: c,
+                    onUpdate: () => UpdateService.openUpdate(_update!),
+                    onDismiss: _update!.force
+                        ? null
+                        : () => setState(() => _updateDismissed = true),
+                  ),
+                ),
+              ),
+
+            // 헤더 — 전체 폭 사용
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.fromLTRB(20, 14, 12, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '절제',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.6,
-                                  color: c.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Text(
-                                  AppVersion.label,
+                    // 오늘 날짜
+                    Text(
+                      todayLabel,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: c.fasting,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // 제목 + 버전 + 메뉴
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: '절제',
                                   style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: c.textMuted,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.6,
+                                    color: c.textPrimary,
+                                    height: 1.15,
                                   ),
                                 ),
+                                TextSpan(
+                                  text: '  ${AppVersion.label}',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: c.textMuted,
+                                    height: 1.15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        _HeaderIconButton(
+                          colors: c,
+                          icon: state.isDarkMode
+                              ? Icons.light_mode_rounded
+                              : Icons.dark_mode_outlined,
+                          tooltip: '테마 변경',
+                          onTap: () => context.read<AppState>().toggleTheme(),
+                        ),
+                        const SizedBox(width: 4),
+                        PopupMenuButton<String>(
+                          tooltip: '더보기',
+                          onSelected: (v) {
+                            if (v == 'backup') _showBackupSheet(context);
+                            if (v == 'lock') _showLockSettings(context);
+                            if (v == 'lock_now') {
+                              context.read<AppState>().lockApp();
+                            }
+                          },
+                          itemBuilder: (ctx) => [
+                            const PopupMenuItem(
+                              value: 'backup',
+                              child: Text('백업 · 내보내기'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'lock',
+                              child: Text('잠금 · 알림 설정'),
+                            ),
+                            if (state.lockEnabled)
+                              const PopupMenuItem(
+                                value: 'lock_now',
+                                child: Text('지금 잠그기'),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '건강한 습관을 기록하는 루틴 앱',
-                            style: TextStyle(
-                              color: c.textMuted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                          ],
+                          child: Container(
+                            width: 46,
+                            height: 46,
+                            margin: const EdgeInsets.only(right: 4),
+                            decoration: BoxDecoration(
+                              color: c.surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: c.border),
+                              boxShadow: appCardShadow(c),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _greeting(),
-                            style: TextStyle(
+                            child: Icon(
+                              Icons.more_horiz_rounded,
                               color: c.textSecondary,
-                              fontSize: 14,
+                              size: 22,
                             ),
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '건강한 습관을 기록하는 루틴 앱',
+                      style: TextStyle(
+                        color: c.textMuted,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
                       ),
                     ),
-                    // 데이터 백업
-                    _HeaderIconButton(
-                      colors: c,
-                      icon: Icons.import_export_rounded,
-                      tooltip: '내보내기 · 불러오기',
-                      onTap: () => _showBackupSheet(context),
-                    ),
-                    const SizedBox(width: 8),
-                    // 잠금 설정
-                    _HeaderIconButton(
-                      colors: c,
-                      icon: Icons.security_rounded,
-                      tooltip: '잠금 설정',
-                      onTap: () => _showLockSettings(context),
-                    ),
-                    const SizedBox(width: 8),
-                    // 지금 잠금
-                    if (state.lockEnabled)
-                      _HeaderIconButton(
-                        colors: c,
-                        icon: Icons.lock_outline_rounded,
-                        tooltip: '지금 잠금',
-                        onTap: () {
-                          context.read<AppState>().lockApp();
-                        },
+                    const SizedBox(height: 4),
+                    Text(
+                      _greeting(),
+                      style: TextStyle(
+                        color: c.textSecondary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
                       ),
-                    if (state.lockEnabled) const SizedBox(width: 8),
-                    // 테마 토글
-                    _HeaderIconButton(
-                      colors: c,
-                      icon: state.isDarkMode
-                          ? Icons.light_mode_rounded
-                          : Icons.dark_mode_outlined,
-                      tooltip: '테마 변경',
-                      onTap: () => context.read<AppState>().toggleTheme(),
                     ),
-                    const SizedBox(width: 8),
                   ],
                 ),
               ),
@@ -146,7 +216,7 @@ class HomeScreen extends StatelessWidget {
                     target: fasting.targetDuration,
                     startTime: fasting.startTime,
                     showExpectedEnd: true,
-                    onTap: () => onNavigate(1),
+                    onTap: () => _goTo(1),
                   ),
                 ),
               ),
@@ -163,7 +233,7 @@ class HomeScreen extends StatelessWidget {
                     target: abstinence.targetDuration,
                     startTime: abstinence.startTime,
                     showExpectedEnd: true,
-                    onTap: () => onNavigate(2),
+                    onTap: () => _goTo(2),
                   ),
                 ),
               ),
@@ -179,7 +249,7 @@ class HomeScreen extends StatelessWidget {
                     elapsed: reading.elapsed,
                     target: Duration(minutes: state.readingDailyGoalMinutes),
                     startTime: reading.startTime,
-                    onTap: () => onNavigate(3),
+                    onTap: () => _goTo(3),
                   ),
                 ),
               ),
@@ -190,7 +260,7 @@ class HomeScreen extends StatelessWidget {
                   colors: c,
                   hasRecord: hasMasturbation,
                   since: sinceLast,
-                  onTap: () => onNavigate(4),
+                  onTap: () => _goTo(4),
                 ),
               ),
             ),
@@ -224,7 +294,7 @@ class HomeScreen extends StatelessWidget {
                           : '대기 중',
                       detail:
                           '성공 ${state.fastingSuccess} · 실패 ${state.fastingFailed} · 총 ${state.fastingTotal}회',
-                      onTap: () => onNavigate(1),
+                      onTap: () => _goTo(1),
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
@@ -238,7 +308,7 @@ class HomeScreen extends StatelessWidget {
                           : '대기 중',
                       detail:
                           '성공 ${state.abstinenceSuccess} · 실패 ${state.abstinenceFailed} · 총 ${state.abstinenceTotal}회',
-                      onTap: () => onNavigate(2),
+                      onTap: () => _goTo(2),
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
@@ -255,7 +325,7 @@ class HomeScreen extends StatelessWidget {
                       detail: state.selectedBook != null
                           ? '${state.selectedBook!.title} · 연속 ${state.readingStreak}일'
                           : '주 ${formatDurationTiny(state.readingThisWeek)} · ${state.books.length}권',
-                      onTap: () => onNavigate(3),
+                      onTap: () => _goTo(3),
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
@@ -269,7 +339,7 @@ class HomeScreen extends StatelessWidget {
                           : '기록 없음',
                       detail:
                           '주 ${state.masturbationThisWeek}회 · 월 ${state.masturbationThisMonth}회',
-                      onTap: () => onNavigate(4),
+                      onTap: () => _goTo(4),
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
@@ -288,7 +358,7 @@ class HomeScreen extends StatelessWidget {
                               state.activeMedicationSets.isEmpty
                           ? '약·세트로 복용 시간을 기록하세요'
                           : _medicationHomeDetail(state),
-                      onTap: () => onNavigate(5),
+                      onTap: () => _goTo(5),
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
@@ -301,7 +371,7 @@ class HomeScreen extends StatelessWidget {
                           '단식 성공 ${formatPercent(state.fastingSuccessRate)}',
                       detail:
                           '금욕 성공 ${formatPercent(state.abstinenceSuccessRate)}',
-                      onTap: () => onNavigate(6),
+                      onTap: () => _goTo(6),
                     ),
                   ],
                 ),
@@ -405,6 +475,86 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+class _UpdateBanner extends StatelessWidget {
+  final AppUpdateInfo info;
+  final AppPalette colors;
+  final VoidCallback onUpdate;
+  final VoidCallback? onDismiss;
+
+  const _UpdateBanner({
+    required this.info,
+    required this.colors,
+    required this.onUpdate,
+    this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: colors.fasting.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.fasting.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.system_update_rounded, color: colors.fasting, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '새 버전 ${info.label} 출시',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  if (info.message.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      info.message,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                        height: 1.3,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: onUpdate,
+              child: Text(
+                '업데이트',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: colors.fasting,
+                ),
+              ),
+            ),
+            if (onDismiss != null)
+              IconButton(
+                tooltip: '닫기',
+                onPressed: onDismiss,
+                icon: Icon(Icons.close_rounded, size: 20, color: colors.textMuted),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _HeaderIconButton extends StatelessWidget {
   final AppPalette colors;
   final IconData icon;
@@ -454,8 +604,6 @@ class _BackupSheet extends StatefulWidget {
 class _BackupSheetState extends State<_BackupSheet> {
   bool _busy = false;
   List<LocalBackupInfo> _locals = [];
-
-  static const _intervalOptions = [1, 3, 7, 14, 30];
 
   @override
   void initState() {
@@ -630,8 +778,6 @@ class _BackupSheetState extends State<_BackupSheet> {
     final c = AppPalette.of(context);
     final bottom = MediaQuery.of(context).viewPadding.bottom;
     final last = state.lastBackupAt;
-    final next = state.nextAutoBackupAt;
-    final due = state.isAutoBackupDue;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 16, 20, 12 + bottom),
@@ -724,12 +870,12 @@ class _BackupSheetState extends State<_BackupSheet> {
                     if (state.autoBackupEnabled) ...[
                       const SizedBox(height: 8),
                       Text(
-                        due
-                            ? '주기 백업 예정 · 앱 실행 시 자동 저장'
-                            : '다음 자동 백업 · ${_formatBackupTime(next)}',
+                        last == null
+                            ? '기록(단식·금욕·독서 등)이 생기면 기기에 자동 저장'
+                            : '기록 추가·변경 시 자동 저장 (최소 2분 간격)',
                         style: TextStyle(
                           fontSize: 12,
-                          color: due ? c.warning : c.textMuted,
+                          color: c.textMuted,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -739,9 +885,9 @@ class _BackupSheetState extends State<_BackupSheet> {
               ),
               const SizedBox(height: 16),
 
-              // 주기 백업 설정
+              // 자동 백업 설정 (데이터 변경 시)
               Text(
-                '주기 자동 백업',
+                '자동 백업',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
@@ -751,7 +897,7 @@ class _BackupSheetState extends State<_BackupSheet> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(
-                  '자동 백업 사용',
+                  '데이터 변경 시 자동 백업',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     color: c.textPrimary,
@@ -759,58 +905,16 @@ class _BackupSheetState extends State<_BackupSheet> {
                   ),
                 ),
                 subtitle: Text(
-                  '앱을 열거나 나갈 때, 주기가 지나면 기기에 저장',
+                  '금욕·독서·단식·체크·약 등이 추가·변경되면 기기에 저장',
                   style: TextStyle(fontSize: 12, color: c.textMuted),
                 ),
                 value: state.autoBackupEnabled,
                 activeThumbColor: c.fasting,
                 onChanged: _busy
                     ? null
-                    : (v) async {
-                        await context.read<AppState>().setAutoBackupEnabled(v);
-                        if (v && context.mounted) {
-                          // 켜면 즉시 한 번 백업
-                          if (context.read<AppState>().isAutoBackupDue) {
-                            await _backupNowLocal();
-                          }
-                        }
-                      },
+                    : (v) => context.read<AppState>().setAutoBackupEnabled(v),
               ),
-              if (state.autoBackupEnabled) ...[
-                Text(
-                  '백업 주기',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: c.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _intervalOptions.map((d) {
-                    final sel = state.autoBackupIntervalDays == d;
-                    final label = d == 1 ? '매일' : '$d일';
-                    return ChoiceChip(
-                      label: Text(label),
-                      selected: sel,
-                      onSelected: _busy
-                          ? null
-                          : (_) => context
-                              .read<AppState>()
-                              .setAutoBackupIntervalDays(d),
-                      selectedColor: c.fasting.withValues(alpha: 0.2),
-                      labelStyle: TextStyle(
-                        color: sel ? c.fasting : c.textSecondary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
 
               FilledButton.icon(
                 style: FilledButton.styleFrom(
@@ -965,8 +1069,8 @@ class _BackupSheetState extends State<_BackupSheet> {
 
               const SizedBox(height: 8),
               Text(
-                '· 자동 백업은 앱 저장소에 최대 15개까지 보관됩니다.\n'
-                '· 다른 기기로 옮기려면 「내보내기」로 공유하세요.',
+                '· 자동 백업: 기록 추가·변경 시 기기 안 저장 (최대 15개).\n'
+                '· 앱 삭제 시 사라집니다. 재설치·기종 변경은 「내보내기」를 쓰세요.',
                 style: TextStyle(fontSize: 12, color: c.textMuted, height: 1.45),
               ),
               if (_busy) ...[
@@ -995,16 +1099,18 @@ class _LockSettingsSheet extends StatelessWidget {
     final state = context.watch<AppState>();
     final c = AppPalette.of(context);
     final media = MediaQuery.of(context);
-    // 키보드 + 시스템 내비 바 + 여유 여백
+    // 시스템 내비/제스처 바와 겹치지 않도록 넉넉히
     final bottomPad =
-        28 + media.viewInsets.bottom + media.viewPadding.bottom;
+        40 + media.viewInsets.bottom + media.viewPadding.bottom;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPad),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPad),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           Center(
             child: Container(
               width: 40,
@@ -1121,7 +1227,7 @@ class _LockSettingsSheet extends StatelessWidget {
                 : null,
           ),
           if (state.lockEnabled) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: () {
                 Navigator.pop(context);
@@ -1135,16 +1241,17 @@ class _LockSettingsSheet extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: c.fasting,
                 side: BorderSide(color: c.fasting.withValues(alpha: 0.4)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
             ),
           ],
-          // 버튼 아래 추가 여백 (안드로이드 내비 바와 겹치지 않게)
-          const SizedBox(height: 16),
+          // 하단 여백 (내비 바와 버튼 사이)
+          const SizedBox(height: 24),
         ],
+        ),
       ),
     );
   }

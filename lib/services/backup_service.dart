@@ -22,9 +22,11 @@ class LocalBackupInfo {
   });
 }
 
-/// 파일로 내보내기 / 불러오기 / 주기 자동 백업
+/// 파일로 내보내기 / 불러오기 / 데이터 변경 시 자동 백업
 class BackupService {
   static const _maxLocalBackups = 15;
+  /// 연속 저장 시 백업 과다 생성 방지 (최소 간격)
+  static const _minAutoBackupGap = Duration(minutes: 2);
 
   static Future<Directory> _backupDir() async {
     final docs = await getApplicationDocumentsDirectory();
@@ -81,12 +83,22 @@ class BackupService {
     }
   }
 
-  /// 주기 백업이 도래했으면 자동 저장
-  static Future<bool> maybeAutoBackup(AppState state) async {
+  /// 단식·금욕·독서 등 데이터가 바뀐 뒤 호출 (디바운스 후 AppState에서 호출)
+  /// 짧은 시간에 여러 번 바뀌면 최소 간격으로 한 번만 저장
+  static Future<bool> backupAfterDataChange(AppState state) async {
     if (!state.autoBackupEnabled) return false;
-    if (!state.isAutoBackupDue) return false;
+    final last = state.lastBackupAt;
+    if (last != null &&
+        DateTime.now().difference(last) < _minAutoBackupGap) {
+      return false;
+    }
     await saveLocalBackup(state, prefix: 'auto');
     return true;
+  }
+
+  /// @Deprecated 호환용 — 데이터 변경 백업으로 대체됨
+  static Future<bool> maybeAutoBackup(AppState state) async {
+    return backupAfterDataChange(state);
   }
 
   /// 로컬 백업 목록 (최신순)

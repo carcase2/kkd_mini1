@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/book.dart';
 import '../models/medication.dart';
 import '../models/session.dart';
+import '../services/backup_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 
@@ -51,22 +53,11 @@ class AppState extends ChangeNotifier {
   int get autoBackupIntervalDays => _autoBackupIntervalDays;
   bool get sessionNotificationsEnabled => _sessionNotificationsEnabled;
 
-  /// 주기 백업이 필요한지
-  bool get isAutoBackupDue {
-    if (!_autoBackupEnabled) return false;
-    final last = _lastBackupAt;
-    if (last == null) return true;
-    final next = last.add(Duration(days: _autoBackupIntervalDays));
-    return !DateTime.now().isBefore(next);
-  }
+  Timer? _autoBackupDebounce;
 
-  /// 다음 자동 백업 예정 (null = 미사용 또는 즉시 필요)
-  DateTime? get nextAutoBackupAt {
-    if (!_autoBackupEnabled) return null;
-    final last = _lastBackupAt;
-    if (last == null) return DateTime.now();
-    return last.add(Duration(days: _autoBackupIntervalDays));
-  }
+  /// 데이터 변경 후 자동 백업이 아직 한 번도 없으면 true (UI 안내용)
+  bool get needsFirstAutoBackup =>
+      _autoBackupEnabled && _lastBackupAt == null;
   List<TrackingSession> get sessions => List.unmodifiable(_sessions);
   List<MasturbationLog> get masturbationLogs =>
       List.unmodifiable(_masturbationLogs);
@@ -733,13 +724,27 @@ class AppState extends ChangeNotifier {
   Future<void> setAutoBackupEnabled(bool enabled) async {
     _autoBackupEnabled = enabled;
     await _storage.saveAutoBackupEnabled(enabled);
+    if (!enabled) {
+      _autoBackupDebounce?.cancel();
+      _autoBackupDebounce = null;
+    }
     notifyListeners();
   }
 
   Future<void> setAutoBackupIntervalDays(int days) async {
+    // 호환용 유지 (UI에서는 더 이상 주기 선택 안 함)
     _autoBackupIntervalDays = days.clamp(1, 90);
     await _storage.saveAutoBackupIntervalDays(_autoBackupIntervalDays);
     notifyListeners();
+  }
+
+  /// 기록 추가·변경 시 호출 — 잠시 후 기기 자동 백업 (연속 저장은 묶음)
+  void _queueAutoBackup() {
+    if (!_autoBackupEnabled) return;
+    _autoBackupDebounce?.cancel();
+    _autoBackupDebounce = Timer(const Duration(seconds: 4), () {
+      BackupService.backupAfterDataChange(this).catchError((_) => false);
+    });
   }
 
   Future<void> setSessionNotificationsEnabled(bool enabled) async {
@@ -757,34 +762,42 @@ class AppState extends ChangeNotifier {
 
   Future<void> _persistSessions() async {
     await _storage.saveSessions(_sessions);
+    _queueAutoBackup();
   }
 
   Future<void> _persistMasturbation() async {
     await _storage.saveMasturbationLogs(_masturbationLogs);
+    _queueAutoBackup();
   }
 
   Future<void> _persistMedications() async {
     await _storage.saveMedications(_medications);
+    _queueAutoBackup();
   }
 
   Future<void> _persistMedicationDoses() async {
     await _storage.saveMedicationDoses(_medicationDoses);
+    _queueAutoBackup();
   }
 
   Future<void> _persistMedicationSets() async {
     await _storage.saveMedicationSets(_medicationSets);
+    _queueAutoBackup();
   }
 
   Future<void> _persistMedicationSetDoses() async {
     await _storage.saveMedicationSetDoses(_medicationSetDoses);
+    _queueAutoBackup();
   }
 
   Future<void> _persistBooks() async {
     await _storage.saveBooks(_books);
+    _queueAutoBackup();
   }
 
   Future<void> _persistReadingLogs() async {
     await _storage.saveReadingLogs(_readingLogs);
+    _queueAutoBackup();
   }
 
   // ── Session actions ──────────────────────────────────────────

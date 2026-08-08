@@ -35,20 +35,17 @@ class _LockScreenState extends State<LockScreen>
     super.dispose();
   }
 
+  static const _maxPinLen = 12;
+
   void _onDigit(String d) {
-    final state = context.read<AppState>();
-    final maxLen = state.pinLength;
-    if (_input.length >= maxLen) return;
+    // 최대 길이만 제한 — 실제 자릿수는 UI에 노출하지 않음
+    if (_input.length >= _maxPinLen) return;
 
     HapticFeedback.selectionClick();
     setState(() {
       _error = null;
       _input += d;
     });
-
-    if (_input.length == maxLen) {
-      _tryUnlock();
-    }
   }
 
   void _onBackspace() {
@@ -70,6 +67,10 @@ class _LockScreenState extends State<LockScreen>
   }
 
   Future<void> _tryUnlock() async {
+    if (_input.isEmpty) {
+      setState(() => _error = '비밀번호를 입력하세요');
+      return;
+    }
     final state = context.read<AppState>();
     final ok = state.unlockWithPin(_input);
     if (ok) {
@@ -87,7 +88,6 @@ class _LockScreenState extends State<LockScreen>
   @override
   Widget build(BuildContext context) {
     final c = AppPalette.of(context);
-    final pinLen = context.watch<AppState>().pinLength;
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -126,7 +126,7 @@ class _LockScreenState extends State<LockScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              '비밀번호를 입력하세요',
+              '비밀번호를 입력한 뒤 확인을 누르세요',
               style: TextStyle(
                 fontSize: 14,
                 color: c.textSecondary,
@@ -134,11 +134,11 @@ class _LockScreenState extends State<LockScreen>
               ),
             ),
             const SizedBox(height: 28),
+            // 자릿수 노출 방지: 빈 칸(전체 길이)을 그리지 않음
             AnimatedBuilder(
               animation: _shake,
               builder: (context, child) {
                 final t = _shake.value;
-                // 좌우 흔들림
                 final dx = (t < 1)
                     ? (20 *
                         (1 - t) *
@@ -150,24 +150,39 @@ class _LockScreenState extends State<LockScreen>
                   child: child,
                 );
               },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(pinLen, (i) {
-                  final filled = i < _input.length;
-                  return Container(
-                    width: 14,
-                    height: 14,
-                    margin: const EdgeInsets.symmetric(horizontal: 6),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: filled ? c.fasting : Colors.transparent,
-                      border: Border.all(
-                        color: filled ? c.fasting : c.border,
-                        width: 1.6,
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 28),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                decoration: BoxDecoration(
+                  color: c.chipBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: c.border),
+                ),
+                child: _input.isEmpty
+                    ? Text(
+                        '••••',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 22,
+                          letterSpacing: 6,
+                          color: c.textMuted.withValues(alpha: 0.45),
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                        ),
+                      )
+                    : Text(
+                        // 입력된 만큼만 ● 표시 (전체 자릿수 힌트 없음)
+                        List.filled(_input.length, '●').join(' '),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 18,
+                          letterSpacing: 2,
+                          color: c.fasting,
+                          fontWeight: FontWeight.w800,
+                          height: 1.2,
+                        ),
                       ),
-                    ),
-                  );
-                }),
               ),
             ),
             const SizedBox(height: 14),
@@ -190,6 +205,7 @@ class _LockScreenState extends State<LockScreen>
                 onDigit: _onDigit,
                 onBackspace: _onBackspace,
                 onClear: _onClear,
+                onSubmit: _tryUnlock,
               ),
             ),
             const SizedBox(height: 28),
@@ -205,12 +221,14 @@ class _PinPad extends StatelessWidget {
   final void Function(String digit) onDigit;
   final VoidCallback onBackspace;
   final VoidCallback onClear;
+  final VoidCallback onSubmit;
 
   const _PinPad({
     required this.colors,
     required this.onDigit,
     required this.onBackspace,
     required this.onClear,
+    required this.onSubmit,
   });
 
   @override
@@ -219,7 +237,7 @@ class _PinPad extends StatelessWidget {
       ['1', '2', '3'],
       ['4', '5', '6'],
       ['7', '8', '9'],
-      ['C', '0', '⌫'],
+      ['C', '0', 'OK'],
     ];
 
     return Column(
@@ -234,15 +252,19 @@ class _PinPad extends StatelessWidget {
                   child: _KeyButton(
                     label: key,
                     colors: colors,
+                    emphasize: key == 'OK',
                     onTap: () {
-                      if (key == '⌫') {
-                        onBackspace();
+                      if (key == 'OK') {
+                        onSubmit();
                       } else if (key == 'C') {
                         onClear();
+                      } else if (key == '⌫') {
+                        onBackspace();
                       } else {
                         onDigit(key);
                       }
                     },
+                    onLongPress: key == 'C' ? onBackspace : null,
                   ),
                 ),
               );
@@ -258,38 +280,52 @@ class _KeyButton extends StatelessWidget {
   final String label;
   final AppPalette colors;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool emphasize;
 
   const _KeyButton({
     required this.label,
     required this.colors,
     required this.onTap,
+    this.onLongPress,
+    this.emphasize = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final isAction = label == 'C' || label == '⌫';
+    final bg = emphasize
+        ? colors.fasting
+        : (isAction ? colors.chipBg : colors.surface);
+    final fg = emphasize
+        ? Colors.white
+        : (isAction ? colors.textSecondary : colors.textPrimary);
+
     return Material(
-      color: isAction ? colors.chipBg : colors.surface,
+      color: bg,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(18),
         child: Container(
           height: 64,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: colors.border),
-            boxShadow: isAction ? null : appCardShadow(colors),
+            border: emphasize
+                ? null
+                : Border.all(color: colors.border),
+            boxShadow: isAction || emphasize ? null : appCardShadow(colors),
           ),
           child: label == '⌫'
-              ? Icon(Icons.backspace_outlined, color: colors.textSecondary)
+              ? Icon(Icons.backspace_outlined, color: fg)
               : Text(
-                  label,
+                  label == 'OK' ? '확인' : label,
                   style: TextStyle(
-                    fontSize: isAction ? 18 : 24,
+                    fontSize: label == 'OK' ? 16 : (isAction ? 18 : 24),
                     fontWeight: FontWeight.w800,
-                    color: isAction ? colors.textSecondary : colors.textPrimary,
+                    color: fg,
                   ),
                 ),
         ),
