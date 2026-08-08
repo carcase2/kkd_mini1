@@ -9,9 +9,11 @@ import '../models/session.dart';
 import '../services/backup_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
+import '../services/supabase_sync_service.dart';
 
 class AppState extends ChangeNotifier {
   final StorageService _storage = StorageService();
+  final SupabaseSyncService _cloud = SupabaseSyncService.instance;
 
   List<TrackingSession> _sessions = [];
   List<MasturbationLog> _masturbationLogs = [];
@@ -54,6 +56,10 @@ class AppState extends ChangeNotifier {
   bool get sessionNotificationsEnabled => _sessionNotificationsEnabled;
 
   Timer? _autoBackupDebounce;
+  Timer? _cloudSyncDebounce;
+  final bool _cloudSyncEnabled = true;
+  bool get cloudSyncEnabled => _cloudSyncEnabled;
+  bool get cloudSyncReady => _cloud.isReady;
 
   /// 데이터 변경 후 자동 백업이 아직 한 번도 없으면 true (UI 안내용)
   bool get needsFirstAutoBackup =>
@@ -574,6 +580,36 @@ class AppState extends ChangeNotifier {
   // ── Load / Save ──────────────────────────────────────────────
 
   Future<void> load() async {
+    await _loadFromStorage();
+    // 잠금 기능 켜져 있으면 앱 시작 시 잠금
+    _isLocked = _lockEnabled;
+    _loaded = true;
+    notifyListeners();
+
+    // 활성 세션 알림 재예약
+    if (_sessionNotificationsEnabled) {
+      await NotificationService.instance.rescheduleActiveSessions(_sessions);
+    }
+
+    // 로컬 로드 후 Supabase와 맞추기 (실패해도 로컬로 계속)
+    if (_cloudSyncEnabled) {
+      try {
+        final applied = await _cloud.syncAfterLocalLoad(_storage);
+        if (applied) {
+          await _loadFromStorage();
+          notifyListeners();
+          if (_sessionNotificationsEnabled) {
+            await NotificationService.instance
+                .rescheduleActiveSessions(_sessions);
+          }
+        }
+      } catch (_) {
+        // 오프라인이면 무시
+      }
+    }
+  }
+
+  Future<void> _loadFromStorage() async {
     _sessions = await _storage.loadSessions();
     _masturbationLogs = await _storage.loadMasturbationLogs();
     _medications = await _storage.loadMedications();
@@ -584,7 +620,6 @@ class AppState extends ChangeNotifier {
     _readingLogs = await _storage.loadReadingLogs();
     _selectedBookId = await _storage.loadSelectedBookId();
     _readingDailyGoalMinutes = await _storage.loadReadingDailyGoalMinutes();
-    // 선택된 책이 삭제됐을 수 있음
     if (_selectedBookId != null &&
         !_books.any((b) => b.id == _selectedBookId)) {
       _selectedBookId = null;
@@ -600,15 +635,6 @@ class AppState extends ChangeNotifier {
     _sessionNotificationsEnabled =
         await _storage.loadSessionNotificationsEnabled();
     NotificationService.instance.setEnabled(_sessionNotificationsEnabled);
-    // 잠금 기능 켜져 있으면 앱 시작 시 잠금
-    _isLocked = _lockEnabled;
-    _loaded = true;
-    notifyListeners();
-
-    // 활성 세션 알림 재예약
-    if (_sessionNotificationsEnabled) {
-      await NotificationService.instance.rescheduleActiveSessions(_sessions);
-    }
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -744,6 +770,19 @@ class AppState extends ChangeNotifier {
     _autoBackupDebounce?.cancel();
     _autoBackupDebounce = Timer(const Duration(seconds: 4), () {
       BackupService.backupAfterDataChange(this).catchError((_) => false);
+    });
+    _queueCloudSync();
+  }
+
+  void _queueCloudSync() {
+    if (!_cloudSyncEnabled) return;
+    _cloudSyncDebounce?.cancel();
+    _cloudSyncDebounce = Timer(const Duration(seconds: 5), () async {
+      try {
+        if (!_cloud.isReady) await _cloud.init();
+        final payload = await _storage.exportBackup();
+        await _cloud.push(payload);
+      } catch (_) {}
     });
   }
 

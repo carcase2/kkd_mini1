@@ -304,6 +304,8 @@ class StorageService {
           'autoBackupIntervalDays':
               prefs.getInt(_autoBackupIntervalDaysKey) ??
                   defaultAutoBackupIntervalDays,
+          'sessionNotificationsEnabled':
+              prefs.getBool(_sessionNotificationsKey) ?? true,
         },
       },
     };
@@ -405,6 +407,12 @@ class StorageService {
       await prefs.setInt(
         _autoBackupIntervalDaysKey,
         interval.toInt().clamp(1, 90),
+      );
+    }
+    if (settings.containsKey('sessionNotificationsEnabled')) {
+      await prefs.setBool(
+        _sessionNotificationsKey,
+        settings['sessionNotificationsEnabled'] == true,
       );
     }
   }

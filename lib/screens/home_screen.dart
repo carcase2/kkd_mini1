@@ -493,33 +493,37 @@ class _UpdateBanner extends StatelessWidget {
     return Material(
       color: colors.fasting.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.fasting.withValues(alpha: 0.35)),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.system_update_rounded, color: colors.fasting, size: 28),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '새 버전 ${info.label} 출시',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14,
-                      color: colors.textPrimary,
+      child: InkWell(
+        onTap: onUpdate,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.fasting.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.system_update_rounded, color: colors.fasting, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '새 버전 ${info.label} 출시',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                        color: colors.textPrimary,
+                      ),
                     ),
-                  ),
-                  if (info.message.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      info.message,
+                      info.message.isNotEmpty
+                          ? info.message
+                          : '눌러서 업데이트하기',
                       style: TextStyle(
                         fontSize: 12,
                         color: colors.textSecondary,
@@ -529,26 +533,30 @@ class _UpdateBanner extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: onUpdate,
-              child: Text(
-                '업데이트',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: colors.fasting,
                 ),
               ),
-            ),
-            if (onDismiss != null)
-              IconButton(
-                tooltip: '닫기',
-                onPressed: onDismiss,
-                icon: Icon(Icons.close_rounded, size: 20, color: colors.textMuted),
+              TextButton(
+                onPressed: onUpdate,
+                child: Text(
+                  '업데이트',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: colors.fasting,
+                  ),
+                ),
               ),
-          ],
+              if (onDismiss != null)
+                IconButton(
+                  tooltip: '닫기',
+                  onPressed: onDismiss,
+                  icon: Icon(
+                    Icons.close_rounded,
+                    size: 20,
+                    color: colors.textMuted,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

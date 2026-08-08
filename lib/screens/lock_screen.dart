@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
+import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_version.dart';
 
@@ -18,6 +19,7 @@ class _LockScreenState extends State<LockScreen>
     with SingleTickerProviderStateMixin {
   String _input = '';
   String? _error;
+  AppUpdateInfo? _update;
   late AnimationController _shake;
 
   @override
@@ -27,6 +29,13 @@ class _LockScreenState extends State<LockScreen>
       vsync: this,
       duration: const Duration(milliseconds: 420),
     );
+    _checkUpdate();
+  }
+
+  Future<void> _checkUpdate() async {
+    final info = await UpdateService.checkForUpdate();
+    if (!mounted || info == null) return;
+    setState(() => _update = info);
   }
 
   @override
@@ -94,6 +103,15 @@ class _LockScreenState extends State<LockScreen>
       body: SafeArea(
         child: Column(
           children: [
+            if (_update != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: _LockUpdateBanner(
+                  info: _update!,
+                  colors: c,
+                  onTap: () => UpdateService.openUpdate(_update!),
+                ),
+              ),
             const Spacer(flex: 2),
             Container(
               width: 72,
@@ -134,7 +152,6 @@ class _LockScreenState extends State<LockScreen>
               ),
             ),
             const SizedBox(height: 28),
-            // 자릿수 노출 방지: 빈 칸(전체 길이)을 그리지 않음
             AnimatedBuilder(
               animation: _shake,
               builder: (context, child) {
@@ -150,39 +167,9 @@ class _LockScreenState extends State<LockScreen>
                   child: child,
                 );
               },
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 28),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                decoration: BoxDecoration(
-                  color: c.chipBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: c.border),
-                ),
-                child: _input.isEmpty
-                    ? Text(
-                        '••••',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 22,
-                          letterSpacing: 6,
-                          color: c.textMuted.withValues(alpha: 0.45),
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                        ),
-                      )
-                    : Text(
-                        // 입력된 만큼만 ● 표시 (전체 자릿수 힌트 없음)
-                        List.filled(_input.length, '●').join(' '),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 18,
-                          letterSpacing: 2,
-                          color: c.fasting,
-                          fontWeight: FontWeight.w800,
-                          height: 1.2,
-                        ),
-                      ),
+              child: _PinSlots(
+                colors: c,
+                input: _input,
               ),
             ),
             const SizedBox(height: 14),
@@ -210,6 +197,123 @@ class _LockScreenState extends State<LockScreen>
             ),
             const SizedBox(height: 28),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 입력 전: 빈 칸 4개. 숫자 누르면 4칸 사라지고 입력 ●만 표시.
+class _PinSlots extends StatelessWidget {
+  final AppPalette colors;
+  final String input;
+
+  const _PinSlots({
+    required this.colors,
+    required this.input,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (input.isEmpty) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(4, (i) {
+          return Container(
+            width: 18,
+            height: 18,
+            margin: EdgeInsets.only(left: i == 0 ? 0 : 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: colors.textMuted.withValues(alpha: 0.45),
+                width: 1.6,
+              ),
+              color: colors.chipBg,
+            ),
+          );
+        }),
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(input.length, (i) {
+        return Container(
+          width: 12,
+          height: 12,
+          margin: EdgeInsets.only(left: i == 0 ? 0 : 10),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: colors.fasting,
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _LockUpdateBanner extends StatelessWidget {
+  final AppUpdateInfo info;
+  final AppPalette colors;
+  final VoidCallback onTap;
+
+  const _LockUpdateBanner({
+    required this.info,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: colors.fasting.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.fasting.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.system_update_rounded, color: colors.fasting, size: 26),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '새 버전 ${info.label} 출시',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      info.message.isNotEmpty
+                          ? info.message
+                          : '눌러서 업데이트하기',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: colors.fasting),
+            ],
+          ),
         ),
       ),
     );

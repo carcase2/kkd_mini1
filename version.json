@@ -1,7 +1,7 @@
 {
-  "version": "1.0.3",
-  "build": 4,
-  "message": "홈 레이아웃 개선 · 업데이트 안내 · 잠금 보안·여백",
+  "version": "1.0.5",
+  "build": 6,
+  "message": "업데이트 안내 · 잠금 PIN 4칸 UI · Supabase 동기화",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",
