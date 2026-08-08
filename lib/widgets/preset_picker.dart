@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../models/session.dart';
 import '../theme/app_theme.dart';
@@ -17,6 +18,12 @@ class PresetPicker extends StatelessWidget {
     required this.onCustom,
   });
 
+  String? _expectedEndLabel(Duration? duration) {
+    if (duration == null) return null;
+    final end = DateTime.now().add(duration);
+    return '완료 ${DateFormat('M/d HH:mm', 'ko').format(end)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = AppPalette.of(context);
@@ -25,6 +32,7 @@ class PresetPicker extends StatelessWidget {
         (p) => _PresetItem(
           label: p.label,
           description: p.description,
+          expectedEnd: _expectedEndLabel(p.duration),
           outlined: p.duration == null,
           onTap: () => onSelected(p.duration),
         ),
@@ -50,17 +58,17 @@ class PresetPicker extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          '탭하면 시작 시각을 지정할 수 있어요',
+          '지금 시작하면 완료 예정이 같이 보여요',
           style: TextStyle(fontSize: 13, color: c.textSecondary),
         ),
         const SizedBox(height: 14),
-        // 한 줄 리스트 — 보기 쉽고 설명 글씨 잘림 없음
         ...items.map(
           (item) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _PresetRow(
               label: item.label,
               description: item.description,
+              expectedEnd: item.expectedEnd,
               accent: accent,
               outlined: item.outlined,
               icon: item.icon,
@@ -76,6 +84,7 @@ class PresetPicker extends StatelessWidget {
 class _PresetItem {
   final String label;
   final String description;
+  final String? expectedEnd;
   final bool outlined;
   final IconData? icon;
   final VoidCallback onTap;
@@ -84,15 +93,17 @@ class _PresetItem {
     required this.label,
     required this.description,
     required this.onTap,
+    this.expectedEnd,
     this.outlined = false,
     this.icon,
   });
 }
 
-/// 한 줄 목표 카드: [시간]  설명  ›
+/// 목표 카드: [시간]  설명 · 완료 예정  ›
 class _PresetRow extends StatelessWidget {
   final String label;
   final String description;
+  final String? expectedEnd;
   final Color accent;
   final bool outlined;
   final IconData? icon;
@@ -103,6 +114,7 @@ class _PresetRow extends StatelessWidget {
     required this.description,
     required this.accent,
     required this.onTap,
+    this.expectedEnd,
     this.outlined = false,
     this.icon,
   });
@@ -120,7 +132,7 @@ class _PresetRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
@@ -131,7 +143,6 @@ class _PresetRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // 시간 라벨 — 내용만큼만 차지 (남는 폭을 설명에)
               if (icon != null) ...[
                 Icon(icon, size: 18, color: accent),
                 const SizedBox(width: 8),
@@ -147,17 +158,38 @@ class _PresetRow extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: c.textSecondary,
-                    fontWeight: FontWeight.w500,
-                    height: 1.25,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: c.textSecondary,
+                        fontWeight: FontWeight.w500,
+                        height: 1.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                    ),
+                    if (expectedEnd != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        expectedEnd!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: accent,
+                          fontWeight: FontWeight.w800,
+                          height: 1.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(width: 4),
@@ -270,7 +302,44 @@ Future<Duration?> showCustomDurationDialog(
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                Builder(
+                  builder: (_) {
+                    final total = Duration(
+                      days: days,
+                      hours: hours,
+                      minutes: minutes,
+                    );
+                    if (total.inMinutes < 1) {
+                      return const SizedBox(height: 24);
+                    }
+                    final end = DateTime.now().add(total);
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: accent.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Text(
+                          '지금 시작 시 완료 예정  '
+                          '${DateFormat('M/d (E) HH:mm', 'ko').format(end)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            color: accent,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
                 FilledButton(
                   style: FilledButton.styleFrom(
                     backgroundColor: accent,

@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'masturbation_screen.dart';
 import 'medication_screen.dart';
+import 'reading_screen.dart';
 import 'stats_screen.dart';
 import 'tracking_screen.dart';
 
@@ -49,6 +50,7 @@ class _AppShellState extends State<AppShell> {
       HomeScreen(onNavigate: _goTo),
       const TrackingScreen(type: SessionType.fasting),
       const TrackingScreen(type: SessionType.abstinence),
+      const ReadingScreen(),
       const MasturbationScreen(),
       const MedicationScreen(),
       const StatsScreen(),
@@ -80,7 +82,7 @@ class _AppShellState extends State<AppShell> {
           shadowColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           indicatorColor: c.fasting.withValues(alpha: 0.12),
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
           height: 68,
           destinations: [
             NavigationDestination(
@@ -97,6 +99,11 @@ class _AppShellState extends State<AppShell> {
               icon: Icon(Icons.shield_outlined, color: c.textMuted),
               selectedIcon: Icon(Icons.shield_rounded, color: c.abstinence),
               label: '금욕',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.menu_book_outlined, color: c.textMuted),
+              selectedIcon: Icon(Icons.menu_book_rounded, color: c.reading),
+              label: '독서',
             ),
             NavigationDestination(
               icon: Icon(Icons.favorite_border_rounded, color: c.textMuted),

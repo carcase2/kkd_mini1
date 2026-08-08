@@ -213,6 +213,8 @@ class StatsScreen extends StatelessWidget {
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -222,6 +224,98 @@ class StatsScreen extends StatelessWidget {
                   ),
                 ),
               ),
+
+            // 독서 섹션
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+                child: _SectionHeader(
+                  title: '독서',
+                  icon: Icons.menu_book_rounded,
+                  color: AppColors.reading,
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: StatCardGrid(
+                  cards: [
+                    StatCard(
+                      label: '연속 일수',
+                      value: '${state.readingStreak}일',
+                      icon: Icons.local_fire_department_rounded,
+                      color: AppColors.reading,
+                      softColor: AppColors.readingSoft,
+                    ),
+                    StatCard(
+                      label: '오늘',
+                      value: formatDurationTiny(state.readingToday),
+                      icon: Icons.today_rounded,
+                      color: AppColors.success,
+                      softColor: AppColors.successSoft,
+                    ),
+                    StatCard(
+                      label: '이번 주',
+                      value: formatDurationTiny(state.readingThisWeek),
+                      icon: Icons.date_range_rounded,
+                      color: AppColors.reading,
+                      softColor: AppColors.readingSoft,
+                    ),
+                    StatCard(
+                      label: '이번 달',
+                      value: formatDurationTiny(state.readingThisMonth),
+                      icon: Icons.calendar_month_rounded,
+                      color: AppColors.warning,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: StatCardGrid(
+                  cards: [
+                    StatCard(
+                      label: '총 독서 시간',
+                      value: formatDurationTiny(state.readingTotalTime),
+                      icon: Icons.schedule_rounded,
+                      color: AppColors.reading,
+                      softColor: AppColors.readingSoft,
+                    ),
+                    StatCard(
+                      label: '세션',
+                      value: '${state.readingSessionCount}회',
+                      icon: Icons.history_rounded,
+                      color: AppColors.abstinence,
+                      softColor: AppColors.abstinenceSoft,
+                    ),
+                    StatCard(
+                      label: '읽는 중',
+                      value: '${state.booksReadingCount}권',
+                      icon: Icons.menu_book_outlined,
+                      color: AppColors.success,
+                      softColor: AppColors.successSoft,
+                    ),
+                    StatCard(
+                      label: '완독',
+                      value: '${state.booksCompletedCount}권',
+                      icon: Icons.emoji_events_outlined,
+                      color: AppColors.warning,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: _ReadingWeekChart(
+                  minutesByDay: state.readingMinutesByDay,
+                ),
+              ),
+            ),
 
             // 체크 섹션
             SliverToBoxAdapter(
@@ -337,7 +431,7 @@ class _SuccessFailChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final total = success + failed;
     return Container(
-      height: 160,
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -345,74 +439,64 @@ class _SuccessFailChart extends StatelessWidget {
         border: Border.all(color: AppColors.border),
       ),
       child: total == 0
-          ? Center(
-              child: Text(
-                emptyLabel,
-                style: TextStyle(color: AppColors.textMuted),
+          ? SizedBox(
+              height: 128,
+              child: Center(
+                child: Text(
+                  emptyLabel,
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
               ),
             )
-          : Row(
+          : Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  width: 120,
-                  height: 120,
-                  child: PieChart(
-                    PieChartData(
-                      sectionsSpace: 3,
-                      centerSpaceRadius: 32,
-                      sections: [
-                        PieChartSectionData(
-                          value: success.toDouble(),
-                          color: AppColors.success,
-                          title: success > 0 ? '$success' : '',
-                          radius: 28,
-                          titleStyle: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                Center(
+                  child: SizedBox(
+                    height: 120,
+                    width: 120,
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 3,
+                        centerSpaceRadius: 34,
+                        sections: [
+                          PieChartSectionData(
+                            value: success.toDouble(),
+                            color: AppColors.success,
+                            title: '',
+                            radius: 26,
+                            showTitle: false,
                           ),
-                        ),
-                        PieChartSectionData(
-                          value: failed.toDouble(),
-                          color: AppColors.danger,
-                          title: failed > 0 ? '$failed' : '',
-                          radius: 28,
-                          titleStyle: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                          PieChartSectionData(
+                            value: failed.toDouble(),
+                            color: AppColors.danger,
+                            title: '',
+                            radius: 26,
+                            showTitle: false,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _Legend(
-                        color: AppColors.success,
-                        label: '성공',
-                        value: '$success회',
-                      ),
-                      const SizedBox(height: 12),
-                      _Legend(
-                        color: AppColors.danger,
-                        label: '실패',
-                        value: '$failed회',
-                      ),
-                      const SizedBox(height: 12),
-                      _Legend(
-                        color: color,
-                        label: '성공률',
-                        value: formatPercent(
-                          total == 0 ? 0 : success / total,
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 14),
+                _Legend(
+                  color: AppColors.success,
+                  label: '성공',
+                  value: '$success회',
+                ),
+                const SizedBox(height: 10),
+                _Legend(
+                  color: AppColors.danger,
+                  label: '실패',
+                  value: '$failed회',
+                ),
+                const SizedBox(height: 10),
+                _Legend(
+                  color: color,
+                  label: '성공률',
+                  value: formatPercent(
+                    total == 0 ? 0 : success / total,
                   ),
                 ),
               ],
@@ -445,19 +529,28 @@ class _Legend extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 13,
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        const Spacer(),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 14,
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
           ),
         ),
       ],
@@ -568,6 +661,126 @@ class _RecentBars extends StatelessWidget {
                         color: ok ? color : AppColors.danger.withValues(alpha: 0.7),
                         width: 14,
                         borderRadius: BorderRadius.circular(6),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReadingWeekChart extends StatelessWidget {
+  final Map<DateTime, int> minutesByDay;
+  const _ReadingWeekChart({required this.minutesByDay});
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final days = List.generate(14, (i) {
+      final d = today.subtract(Duration(days: 13 - i));
+      return DateTime(d.year, d.month, d.day);
+    });
+    final values =
+        days.map((d) => (minutesByDay[d] ?? 0).toDouble()).toList();
+    final maxY = values.fold<double>(1, (a, b) => a > b ? a : b);
+
+    return Container(
+      height: 200,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '최근 14일 독서 (분)',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: maxY * 1.15 + 1,
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      return BarTooltipItem(
+                        '${rod.toY.toInt()}분',
+                        const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        final i = value.toInt();
+                        if (i < 0 || i >= days.length) {
+                          return const SizedBox.shrink();
+                        }
+                        if (i % 2 != 0 && i != days.length - 1) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            '${days[i].month}/${days[i].day}',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (v) => FlLine(
+                    color: AppColors.border.withValues(alpha: 0.5),
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                barGroups: List.generate(days.length, (i) {
+                  return BarChartGroupData(
+                    x: i,
+                    barRods: [
+                      BarChartRodData(
+                        toY: values[i],
+                        color: values[i] == 0
+                            ? AppColors.border
+                            : AppColors.reading,
+                        width: 10,
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ],
                   );

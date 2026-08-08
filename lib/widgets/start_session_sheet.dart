@@ -137,8 +137,8 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
     });
   }
 
-  String _formatStart(DateTime dt) {
-    return DateFormat('M월 d일 (E)\na h:mm', 'ko').format(dt);
+  String _formatDateTime(DateTime dt) {
+    return DateFormat('M/d (E) HH:mm', 'ko').format(dt);
   }
 
   @override
@@ -150,6 +150,9 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
     final keyboard = media.viewInsets.bottom;
     final maxSheetHeight = media.size.height * 0.92;
     final previewStart = _effectiveStart;
+    final target = widget.targetDuration;
+    final expectedEnd =
+        target != null ? previewStart.add(target) : null;
 
     return Padding(
       padding: EdgeInsets.only(bottom: navBar),
@@ -290,45 +293,47 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.play_circle_outline_rounded,
-                          color: widget.accent,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '시작 시각',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: c.textMuted,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                    _PreviewLine(
+                      icon: Icons.play_circle_outline_rounded,
+                      caption: '시작',
+                      value: _useNow
+                          ? '지금 · ${_formatDateTime(previewStart)}'
+                          : _formatDateTime(previewStart),
+                      accent: widget.accent,
+                      colors: c,
                     ),
-                    const SizedBox(height: 8),
-                    if (_useNow)
+                    if (expectedEnd != null) ...[
+                      const SizedBox(height: 12),
+                      Divider(height: 1, color: c.border.withValues(alpha: 0.8)),
+                      const SizedBox(height: 12),
+                      _PreviewLine(
+                        icon: Icons.flag_rounded,
+                        caption: '완료 예정',
+                        value: _formatDateTime(expectedEnd),
+                        accent: widget.accent,
+                        colors: c,
+                        emphasize: true,
+                      ),
+                      const SizedBox(height: 6),
                       Text(
-                        '지금 · ${DateFormat('M월 d일 (E) a h:mm', 'ko').format(DateTime.now())}',
+                        '목표 $targetLabel 기준 · 시작 시각이 바뀌면 함께 바뀌어요',
                         style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                          height: 1.35,
-                          color: c.textPrimary,
-                        ),
-                      )
-                    else
-                      Text(
-                        _formatStart(previewStart),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                          height: 1.4,
-                          color: c.textPrimary,
+                          fontSize: 11,
+                          color: c.textMuted,
+                          height: 1.3,
                         ),
                       ),
+                    ] else ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '자유 모드 · 완료 예정 시각 없음',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: c.textMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -365,6 +370,68 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PreviewLine extends StatelessWidget {
+  final IconData icon;
+  final String caption;
+  final String value;
+  final Color accent;
+  final AppPalette colors;
+  final bool emphasize;
+
+  const _PreviewLine({
+    required this.icon,
+    required this.caption,
+    required this.value,
+    required this.accent,
+    required this.colors,
+    this.emphasize = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: accent, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                caption,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: emphasize ? 16 : 14,
+                      height: 1.25,
+                      color: emphasize ? accent : colors.textPrimary,
+                    ),
+                    maxLines: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

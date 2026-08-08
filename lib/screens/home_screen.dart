@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
+import '../services/backup_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
 import '../widgets/timer_ring.dart';
@@ -18,6 +20,7 @@ class HomeScreen extends StatelessWidget {
     final c = AppPalette.of(context);
     final fasting = state.activeFasting;
     final abstinence = state.activeAbstinence;
+    final reading = state.activeReading;
     final sinceLast = state.timeSinceLastMasturbation;
     final hasMasturbation = state.lastMasturbation != null;
 
@@ -65,30 +68,41 @@ class HomeScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    // 테마 토글
-                    Material(
-                      color: c.surface,
-                      borderRadius: BorderRadius.circular(14),
-                      child: InkWell(
-                        onTap: () => context.read<AppState>().toggleTheme(),
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: c.border),
-                            boxShadow: appCardShadow(c),
-                          ),
-                          child: Icon(
-                            state.isDarkMode
-                                ? Icons.light_mode_rounded
-                                : Icons.dark_mode_outlined,
-                            color: c.textSecondary,
-                            size: 22,
-                          ),
-                        ),
+                    // 데이터 백업
+                    _HeaderIconButton(
+                      colors: c,
+                      icon: Icons.import_export_rounded,
+                      tooltip: '내보내기 · 불러오기',
+                      onTap: () => _showBackupSheet(context),
+                    ),
+                    const SizedBox(width: 8),
+                    // 잠금 설정
+                    _HeaderIconButton(
+                      colors: c,
+                      icon: Icons.security_rounded,
+                      tooltip: '잠금 설정',
+                      onTap: () => _showLockSettings(context),
+                    ),
+                    const SizedBox(width: 8),
+                    // 지금 잠금
+                    if (state.lockEnabled)
+                      _HeaderIconButton(
+                        colors: c,
+                        icon: Icons.lock_outline_rounded,
+                        tooltip: '지금 잠금',
+                        onTap: () {
+                          context.read<AppState>().lockApp();
+                        },
                       ),
+                    if (state.lockEnabled) const SizedBox(width: 8),
+                    // 테마 토글
+                    _HeaderIconButton(
+                      colors: c,
+                      icon: state.isDarkMode
+                          ? Icons.light_mode_rounded
+                          : Icons.dark_mode_outlined,
+                      tooltip: '테마 변경',
+                      onTap: () => context.read<AppState>().toggleTheme(),
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -130,7 +144,24 @@ class HomeScreen extends StatelessWidget {
                     elapsed: abstinence.elapsed,
                     target: abstinence.targetDuration,
                     startTime: abstinence.startTime,
+                    showExpectedEnd: true,
                     onTap: () => onNavigate(2),
+                  ),
+                ),
+              ),
+            if (reading != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                  child: _ActiveCard(
+                    title: '독서 중 · ${state.bookById(reading.bookId)?.title ?? '책'}',
+                    color: c.reading,
+                    soft: c.readingSoft,
+                    colors: c,
+                    elapsed: reading.elapsed,
+                    target: Duration(minutes: state.readingDailyGoalMinutes),
+                    startTime: reading.startTime,
+                    onTap: () => onNavigate(3),
                   ),
                 ),
               ),
@@ -141,7 +172,7 @@ class HomeScreen extends StatelessWidget {
                   colors: c,
                   hasRecord: hasMasturbation,
                   since: sinceLast,
-                  onTap: () => onNavigate(3),
+                  onTap: () => onNavigate(4),
                 ),
               ),
             ),
@@ -193,6 +224,23 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
+                      title: '독서',
+                      icon: Icons.menu_book_rounded,
+                      color: c.reading,
+                      soft: c.readingSoft,
+                      colors: c,
+                      status: reading != null
+                          ? '${formatDuration(reading.elapsed, short: true)} 진행'
+                          : state.readingTodayGoalMet
+                              ? '오늘 목표 달성'
+                              : '오늘 ${formatDurationTiny(state.readingToday)}',
+                      detail: state.selectedBook != null
+                          ? '${state.selectedBook!.title} · 연속 ${state.readingStreak}일'
+                          : '주 ${formatDurationTiny(state.readingThisWeek)} · ${state.books.length}권',
+                      onTap: () => onNavigate(3),
+                    ),
+                    const SizedBox(height: 8),
+                    _QuickRow(
                       title: '체크',
                       icon: Icons.favorite_border_rounded,
                       color: c.check,
@@ -203,7 +251,7 @@ class HomeScreen extends StatelessWidget {
                           : '기록 없음',
                       detail:
                           '주 ${state.masturbationThisWeek}회 · 월 ${state.masturbationThisMonth}회',
-                      onTap: () => onNavigate(3),
+                      onTap: () => onNavigate(4),
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
@@ -222,7 +270,7 @@ class HomeScreen extends StatelessWidget {
                               state.activeMedicationSets.isEmpty
                           ? '약·세트로 복용 시간을 기록하세요'
                           : _medicationHomeDetail(state),
-                      onTap: () => onNavigate(4),
+                      onTap: () => onNavigate(5),
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
@@ -235,7 +283,7 @@ class HomeScreen extends StatelessWidget {
                           '단식 성공 ${formatPercent(state.fastingSuccessRate)}',
                       detail:
                           '금욕 성공 ${formatPercent(state.abstinenceSuccessRate)}',
-                      onTap: () => onNavigate(5),
+                      onTap: () => onNavigate(6),
                     ),
                   ],
                 ),
@@ -254,6 +302,34 @@ class HomeScreen extends StatelessWidget {
     if (h < 12) return '좋은 아침이에요 ☀️';
     if (h < 18) return '오늘도 한 걸음씩 🔥';
     return '저녁 루틴 체크해볼까요 🌙';
+  }
+
+  Future<void> _showLockSettings(BuildContext context) async {
+    final c = AppPalette.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: c.surfaceElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => const _LockSettingsSheet(),
+    );
+  }
+
+  Future<void> _showBackupSheet(BuildContext context) async {
+    final c = AppPalette.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: c.surfaceElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => const _BackupSheet(),
+    );
   }
 
   String _medicationHomeStatus(AppState state) {
@@ -297,6 +373,807 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+class _HeaderIconButton extends StatelessWidget {
+  final AppPalette colors;
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _HeaderIconButton({
+    required this.colors,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: colors.border),
+              boxShadow: appCardShadow(colors),
+            ),
+            child: Icon(icon, color: colors.textSecondary, size: 22),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BackupSheet extends StatefulWidget {
+  const _BackupSheet();
+
+  @override
+  State<_BackupSheet> createState() => _BackupSheetState();
+}
+
+class _BackupSheetState extends State<_BackupSheet> {
+  bool _busy = false;
+  List<LocalBackupInfo> _locals = [];
+
+  static const _intervalOptions = [1, 3, 7, 14, 30];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocals();
+  }
+
+  Future<void> _loadLocals() async {
+    final list = await BackupService.listLocalBackups();
+    if (mounted) setState(() => _locals = list);
+  }
+
+  String _formatBackupTime(DateTime? when) {
+    if (when == null) return '아직 백업한 적 없음';
+    return DateFormat('yyyy.M.d (E) HH:mm', 'ko').format(when);
+  }
+
+  String _formatRelative(DateTime when) {
+    final diff = DateTime.now().difference(when);
+    if (diff.inMinutes < 1) return '방금';
+    if (diff.inHours < 1) return '${diff.inMinutes}분 전';
+    if (diff.inDays < 1) return '${diff.inHours}시간 전';
+    if (diff.inDays < 30) return '${diff.inDays}일 전';
+    return DateFormat('M/d', 'ko').format(when);
+  }
+
+  Future<void> _export() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final state = context.read<AppState>();
+      await BackupService.exportToFile(state);
+      await _loadLocals();
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('백업 파일을 공유할 준비가 됐어요')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('내보내기 실패: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _backupNowLocal() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await BackupService.saveLocalBackup(
+        context.read<AppState>(),
+        prefix: 'manual',
+      );
+      await _loadLocals();
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('기기에 백업을 저장했어요')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('백업 실패: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _import() async {
+    if (_busy) return;
+    final c = AppPalette.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('불러올까요?'),
+        content: const Text(
+          '백업 파일의 내용으로 현재 데이터를 모두 교체합니다.\n'
+          '지금 기기 데이터는 덮어씌워지니, 필요하면 먼저 내보내기 하세요.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: c.fasting),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('불러오기'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final state = context.read<AppState>();
+      final result = await BackupService.importFromFile(state);
+      if (!mounted) return;
+      if (result == null) return;
+      HapticFeedback.mediumImpact();
+      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('백업을 불러왔어요')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('불러오기 실패: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restoreLocal(LocalBackupInfo info) async {
+    if (_busy) return;
+    final c = AppPalette.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('이 백업으로 복원할까요?'),
+        content: Text(
+          '${_formatBackupTime(info.modifiedAt)}\n'
+          '현재 데이터는 이 백업으로 교체됩니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: c.fasting),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('복원'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await BackupService.importFromLocalPath(
+        context.read<AppState>(),
+        info.path,
+      );
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('로컬 백업으로 복원했어요')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('복원 실패: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final c = AppPalette.of(context);
+    final bottom = MediaQuery.of(context).viewPadding.bottom;
+    final last = state.lastBackupAt;
+    final next = state.nextAutoBackupAt;
+    final due = state.isAutoBackupDue;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 12 + bottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: c.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.import_export_rounded, color: c.fasting),
+                  const SizedBox(width: 10),
+                  Text(
+                    '데이터 백업',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: c.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // 마지막 백업 시각
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: c.fasting.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: c.fasting.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.schedule_rounded,
+                          size: 18,
+                          color: c.fasting,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '마지막 백업',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            color: c.textSecondary,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (last != null)
+                          Text(
+                            _formatRelative(last),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: c.fasting,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _formatBackupTime(last),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: c.textPrimary,
+                      ),
+                    ),
+                    if (state.autoBackupEnabled) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        due
+                            ? '주기 백업 예정 · 앱 실행 시 자동 저장'
+                            : '다음 자동 백업 · ${_formatBackupTime(next)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: due ? c.warning : c.textMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 주기 백업 설정
+              Text(
+                '주기 자동 백업',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: c.textPrimary,
+                ),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  '자동 백업 사용',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: c.textPrimary,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  '앱을 열거나 나갈 때, 주기가 지나면 기기에 저장',
+                  style: TextStyle(fontSize: 12, color: c.textMuted),
+                ),
+                value: state.autoBackupEnabled,
+                activeThumbColor: c.fasting,
+                onChanged: _busy
+                    ? null
+                    : (v) async {
+                        await context.read<AppState>().setAutoBackupEnabled(v);
+                        if (v && context.mounted) {
+                          // 켜면 즉시 한 번 백업
+                          if (context.read<AppState>().isAutoBackupDue) {
+                            await _backupNowLocal();
+                          }
+                        }
+                      },
+              ),
+              if (state.autoBackupEnabled) ...[
+                Text(
+                  '백업 주기',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: c.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _intervalOptions.map((d) {
+                    final sel = state.autoBackupIntervalDays == d;
+                    final label = d == 1 ? '매일' : '$d일';
+                    return ChoiceChip(
+                      label: Text(label),
+                      selected: sel,
+                      onSelected: _busy
+                          ? null
+                          : (_) => context
+                              .read<AppState>()
+                              .setAutoBackupIntervalDays(d),
+                      selectedColor: c.fasting.withValues(alpha: 0.2),
+                      labelStyle: TextStyle(
+                        color: sel ? c.fasting : c.textSecondary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+              const SizedBox(height: 18),
+
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: c.fasting,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: _busy ? null : _export,
+                icon: const Icon(Icons.ios_share_rounded),
+                label: const Text(
+                  '내보내기 (공유)',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: c.fasting,
+                  side: BorderSide(color: c.fasting.withValues(alpha: 0.4)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: _busy ? null : _backupNowLocal,
+                icon: const Icon(Icons.save_alt_rounded),
+                label: const Text(
+                  '지금 기기에 백업',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: c.textSecondary,
+                  side: BorderSide(color: c.border),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: _busy ? null : _import,
+                icon: const Icon(Icons.folder_open_rounded),
+                label: const Text(
+                  '파일에서 불러오기',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Text(
+                    '기기 백업 목록',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: c.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${_locals.length}개',
+                    style: TextStyle(fontSize: 12, color: c.textMuted),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_locals.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    '아직 기기 안에 저장된 백업이 없어요.\n'
+                    '「지금 기기에 백업」또는 자동 백업을 켜 보세요.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: c.textMuted,
+                      height: 1.4,
+                    ),
+                  ),
+                )
+              else
+                ..._locals.take(8).map((info) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: c.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        onTap: _busy ? null : () => _restoreLocal(info),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: c.border),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                info.name.startsWith('auto')
+                                    ? Icons.autorenew_rounded
+                                    : Icons.history_rounded,
+                                size: 20,
+                                color: c.fasting,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _formatBackupTime(info.modifiedAt),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13,
+                                        color: c.textPrimary,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${_formatRelative(info.modifiedAt)}'
+                                      ' · ${(info.sizeBytes / 1024).toStringAsFixed(1)} KB'
+                                      '${info.name.startsWith('auto') ? ' · 자동' : ''}',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: c.textMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                '복원',
+                                style: TextStyle(
+                                  color: c.fasting,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+
+              const SizedBox(height: 8),
+              Text(
+                '· 자동 백업은 앱 저장소에 최대 15개까지 보관됩니다.\n'
+                '· 다른 기기로 옮기려면 「내보내기」로 공유하세요.',
+                style: TextStyle(fontSize: 12, color: c.textMuted, height: 1.45),
+              ),
+              if (_busy) ...[
+                const SizedBox(height: 12),
+                const Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LockSettingsSheet extends StatelessWidget {
+  const _LockSettingsSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final c = AppPalette.of(context);
+    final media = MediaQuery.of(context);
+    // 키보드 + 시스템 내비 바 + 여유 여백
+    final bottomPad =
+        28 + media.viewInsets.bottom + media.viewPadding.bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPad),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: c.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Icon(Icons.security_rounded, color: c.fasting),
+              const SizedBox(width: 10),
+              Text(
+                '잠금 설정',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: c.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '앱 시작·백그라운드 복귀 시 비밀번호로 보호합니다.',
+            style: TextStyle(fontSize: 13, color: c.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              '앱 잠금 사용',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: c.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              '켜면 실행 시 비밀번호가 필요합니다',
+              style: TextStyle(fontSize: 12, color: c.textMuted),
+            ),
+            value: state.lockEnabled,
+            activeThumbColor: c.fasting,
+            onChanged: (v) => context.read<AppState>().setLockEnabled(v),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              '자동 잠금',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: c.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              '앱을 나가면 자동으로 잠급니다',
+              style: TextStyle(fontSize: 12, color: c.textMuted),
+            ),
+            value: state.autoLockEnabled,
+            activeThumbColor: c.fasting,
+            onChanged: state.lockEnabled
+                ? (v) => context.read<AppState>().setAutoLockEnabled(v)
+                : null,
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.password_rounded, color: c.fasting),
+            title: Text(
+              '비밀번호 변경',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: c.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              '숫자 4~12자리',
+              style: TextStyle(fontSize: 12, color: c.textMuted),
+            ),
+            trailing: Icon(Icons.chevron_right_rounded, color: c.textMuted),
+            enabled: state.lockEnabled,
+            onTap: state.lockEnabled
+                ? () => _changePin(context)
+                : null,
+          ),
+          if (state.lockEnabled) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                context.read<AppState>().lockApp();
+              },
+              icon: const Icon(Icons.lock_rounded),
+              label: const Text(
+                '지금 잠그기',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: c.fasting,
+                side: BorderSide(color: c.fasting.withValues(alpha: 0.4)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ],
+          // 버튼 아래 추가 여백 (안드로이드 내비 바와 겹치지 않게)
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _changePin(BuildContext context) async {
+    final c = AppPalette.of(context);
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('비밀번호 변경'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currentCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '현재 비밀번호'),
+              autofocus: true,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: newCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '새 비밀번호'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: confirmCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '새 비밀번호 확인'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: c.fasting),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('변경'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true || !context.mounted) return;
+
+    final current = currentCtrl.text.trim();
+    final next = newCtrl.text.trim();
+    final confirm = confirmCtrl.text.trim();
+
+    if (next != confirm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('새 비밀번호가 일치하지 않습니다')),
+      );
+      return;
+    }
+    if (next.length < 4 || next.length > 12 || !RegExp(r'^\d+$').hasMatch(next)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('비밀번호는 숫자 4~12자리여야 합니다')),
+      );
+      return;
+    }
+
+    final success = await context.read<AppState>().changePin(
+          currentPin: current,
+          newPin: next,
+        );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success ? '비밀번호를 변경했어요' : '현재 비밀번호가 올바르지 않습니다',
+        ),
+      ),
+    );
+  }
+}
+
 class _OverviewBanner extends StatelessWidget {
   final AppState state;
   final AppPalette colors;
@@ -306,7 +1183,8 @@ class _OverviewBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final activeCount =
         (state.activeFasting != null ? 1 : 0) +
-        (state.activeAbstinence != null ? 1 : 0);
+        (state.activeAbstinence != null ? 1 : 0) +
+        (state.activeReading != null ? 1 : 0);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -356,7 +1234,9 @@ class _OverviewBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  activeCount > 0 ? '아래에서 타이머를 확인하세요' : '단식·금욕을 시작해보세요',
+                  activeCount > 0
+                      ? '아래에서 타이머를 확인하세요'
+                      : '단식·금욕·독서를 시작해보세요',
                   style: TextStyle(
                     fontSize: 12,
                     color: colors.textSecondary,
@@ -520,7 +1400,7 @@ class _ActiveCard extends StatelessWidget {
   String? get _expectedEndLabel {
     if (!showExpectedEnd || target == null || startTime == null) return null;
     final end = startTime!.add(target!);
-    return '완료 예정 ${DateFormat('M월 d일 (E) a h:mm', 'ko').format(end)}';
+    return '완료 예정 ${DateFormat('M/d (E) HH:mm', 'ko').format(end)}';
   }
 
   String? get _remainingLabel {

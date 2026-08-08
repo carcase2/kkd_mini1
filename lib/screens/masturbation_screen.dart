@@ -9,6 +9,7 @@ import '../utils/format.dart';
 import '../utils/picker_theme.dart';
 import '../widgets/history_tile.dart';
 import '../widgets/stat_card.dart';
+import '../widgets/sticky_bottom_bar.dart';
 
 class MasturbationScreen extends StatelessWidget {
   const MasturbationScreen({super.key});
@@ -16,6 +17,7 @@ class MasturbationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final c = AppPalette.of(context);
     final logs = state.sortedMasturbationLogs;
     final last = state.lastMasturbation;
     final since = state.timeSinceLastMasturbation;
@@ -24,9 +26,13 @@ class MasturbationScreen extends StatelessWidget {
     final minutes = since.inMinutes.remainder(60);
 
     return Scaffold(
+      backgroundColor: c.bg,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
+        child: Column(
+          children: [
+            Expanded(
+              child: CustomScrollView(
+                slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -182,36 +188,6 @@ class MasturbationScreen extends StatelessWidget {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.check,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          onPressed: () => _logNow(context),
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text(
-                            '지금 체크하기',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: () => _logCustom(context),
-                        child: Text(
-                          '다른 날짜/시간으로 기록',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -292,7 +268,7 @@ class MasturbationScreen extends StatelessWidget {
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -306,6 +282,34 @@ class MasturbationScreen extends StatelessWidget {
                   ),
                 ),
               ),
+                ],
+              ),
+            ),
+            StickyBottomBar(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StickyActionButton(
+                    label: '지금 체크하기',
+                    icon: Icons.add_rounded,
+                    color: c.check,
+                    onTap: () => _logNow(context),
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: () => _logCustom(context),
+                    child: Text(
+                      '다른 날짜/시간으로 기록',
+                      style: TextStyle(
+                        color: c.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
+import '../models/book.dart';
 import '../models/medication.dart';
 import '../models/session.dart';
 import '../services/storage_service.dart';
@@ -13,12 +16,52 @@ class AppState extends ChangeNotifier {
   List<MedicationDose> _medicationDoses = [];
   List<MedicationSet> _medicationSets = [];
   List<MedicationSetDose> _medicationSetDoses = [];
+  List<Book> _books = [];
+  List<ReadingLog> _readingLogs = [];
+  String? _selectedBookId;
+  int _readingDailyGoalMinutes = 30;
   bool _loaded = false;
   ThemeMode _themeMode = ThemeMode.light; // 기본: 라이트
+
+  // 앱 잠금
+  bool _lockEnabled = true;
+  bool _autoLockEnabled = true;
+  String _appPin = StorageService.defaultPin;
+  bool _isLocked = true; // 잠금 사용 시 시작 시 잠금
+
+  // 백업
+  DateTime? _lastBackupAt;
+  bool _autoBackupEnabled = true;
+  int _autoBackupIntervalDays =
+      StorageService.defaultAutoBackupIntervalDays;
 
   bool get isLoaded => _loaded;
   ThemeMode get themeMode => _themeMode;
   bool get isDarkMode => _themeMode == ThemeMode.dark;
+  bool get lockEnabled => _lockEnabled;
+  bool get autoLockEnabled => _autoLockEnabled;
+  bool get isLocked => _lockEnabled && _isLocked;
+  int get pinLength => _appPin.length;
+  DateTime? get lastBackupAt => _lastBackupAt;
+  bool get autoBackupEnabled => _autoBackupEnabled;
+  int get autoBackupIntervalDays => _autoBackupIntervalDays;
+
+  /// 주기 백업이 필요한지
+  bool get isAutoBackupDue {
+    if (!_autoBackupEnabled) return false;
+    final last = _lastBackupAt;
+    if (last == null) return true;
+    final next = last.add(Duration(days: _autoBackupIntervalDays));
+    return !DateTime.now().isBefore(next);
+  }
+
+  /// 다음 자동 백업 예정 (null = 미사용 또는 즉시 필요)
+  DateTime? get nextAutoBackupAt {
+    if (!_autoBackupEnabled) return null;
+    final last = _lastBackupAt;
+    if (last == null) return DateTime.now();
+    return last.add(Duration(days: _autoBackupIntervalDays));
+  }
   List<TrackingSession> get sessions => List.unmodifiable(_sessions);
   List<MasturbationLog> get masturbationLogs =>
       List.unmodifiable(_masturbationLogs);
@@ -28,6 +71,10 @@ class AppState extends ChangeNotifier {
   List<MedicationSet> get medicationSets => List.unmodifiable(_medicationSets);
   List<MedicationSetDose> get medicationSetDoses =>
       List.unmodifiable(_medicationSetDoses);
+  List<Book> get books => List.unmodifiable(_books);
+  List<ReadingLog> get readingLogs => List.unmodifiable(_readingLogs);
+  String? get selectedBookId => _selectedBookId;
+  int get readingDailyGoalMinutes => _readingDailyGoalMinutes;
 
   // ── Active sessions ──────────────────────────────────────────
 
@@ -321,6 +368,213 @@ class AppState extends ChangeNotifier {
         .length;
   }
 
+  // ── Stats: Reading ───────────────────────────────────────────
+
+  List<Book> get sortedBooks {
+    final list = List<Book>.from(_books);
+    list.sort((a, b) {
+      // 읽는 중 → 일시중지 → 읽을 예정 → 완독
+      final order = {
+        BookStatus.reading: 0,
+        BookStatus.paused: 1,
+        BookStatus.wishlist: 2,
+        BookStatus.completed: 3,
+      };
+      final oa = order[a.status] ?? 9;
+      final ob = order[b.status] ?? 9;
+      if (oa != ob) return oa.compareTo(ob);
+      return b.createdAt.compareTo(a.createdAt);
+    });
+    return list;
+  }
+
+  List<Book> get activeBooks =>
+      _books.where((b) => b.status != BookStatus.completed).toList();
+
+  Book? get selectedBook {
+    if (_selectedBookId == null) return null;
+    try {
+      return _books.firstWhere((b) => b.id == _selectedBookId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Book? bookById(String id) {
+    try {
+      return _books.firstWhere((b) => b.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  ReadingLog? get activeReading {
+    try {
+      return _readingLogs.firstWhere((l) => l.active);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<ReadingLog> get completedReadingLogs {
+    final list = _readingLogs.where((l) => !l.active).toList();
+    list.sort((a, b) => b.startTime.compareTo(a.startTime));
+    return list;
+  }
+
+  List<ReadingLog> readingLogsForBook(String bookId) {
+    final list =
+        _readingLogs.where((l) => l.bookId == bookId && !l.active).toList();
+    list.sort((a, b) => b.startTime.compareTo(a.startTime));
+    return list;
+  }
+
+  int pagesReadForBook(String bookId) {
+    return _readingLogs
+        .where((l) => l.bookId == bookId && !l.active)
+        .fold<int>(0, (sum, l) => sum + (l.pagesRead ?? 0));
+  }
+
+  Duration readingTimeForBook(String bookId) {
+    return _readingLogs
+        .where((l) => l.bookId == bookId && !l.active)
+        .fold(Duration.zero, (sum, l) => sum + l.recordedDuration);
+  }
+
+  /// 책 진행률 0~1 (totalPages 있을 때). 없으면 null.
+  double? bookProgress(String bookId) {
+    final book = bookById(bookId);
+    if (book == null || book.totalPages == null || book.totalPages! <= 0) {
+      return null;
+    }
+    return (pagesReadForBook(bookId) / book.totalPages!).clamp(0.0, 1.0);
+  }
+
+  Duration readingDurationOnDay(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return _readingLogs.where((l) {
+      if (l.active) return false;
+      final t = l.endTime ?? l.startTime;
+      return !t.isBefore(start) && t.isBefore(end);
+    }).fold(Duration.zero, (sum, l) => sum + l.recordedDuration);
+  }
+
+  int readingPagesOnDay(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return _readingLogs.where((l) {
+      if (l.active) return false;
+      final t = l.endTime ?? l.startTime;
+      return !t.isBefore(start) && t.isBefore(end);
+    }).fold<int>(0, (sum, l) => sum + (l.pagesRead ?? 0));
+  }
+
+  Duration get readingToday => readingDurationOnDay(DateTime.now());
+
+  int get readingPagesToday => readingPagesOnDay(DateTime.now());
+
+  Duration get readingThisWeek {
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final start = DateTime(weekStart.year, weekStart.month, weekStart.day);
+    return _readingLogs.where((l) {
+      if (l.active) return false;
+      final t = l.endTime ?? l.startTime;
+      return !t.isBefore(start);
+    }).fold(Duration.zero, (sum, l) => sum + l.recordedDuration);
+  }
+
+  int get readingPagesThisWeek {
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final start = DateTime(weekStart.year, weekStart.month, weekStart.day);
+    return _readingLogs.where((l) {
+      if (l.active) return false;
+      final t = l.endTime ?? l.startTime;
+      return !t.isBefore(start);
+    }).fold<int>(0, (sum, l) => sum + (l.pagesRead ?? 0));
+  }
+
+  Duration get readingThisMonth {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, 1);
+    return _readingLogs.where((l) {
+      if (l.active) return false;
+      final t = l.endTime ?? l.startTime;
+      return !t.isBefore(start);
+    }).fold(Duration.zero, (sum, l) => sum + l.recordedDuration);
+  }
+
+  Duration get readingTotalTime {
+    return _readingLogs
+        .where((l) => !l.active)
+        .fold(Duration.zero, (sum, l) => sum + l.recordedDuration);
+  }
+
+  int get readingTotalPages {
+    return _readingLogs
+        .where((l) => !l.active)
+        .fold<int>(0, (sum, l) => sum + (l.pagesRead ?? 0));
+  }
+
+  int get readingSessionCount => _readingLogs.where((l) => !l.active).length;
+
+  int get booksCompletedCount =>
+      _books.where((b) => b.status == BookStatus.completed).length;
+
+  int get booksReadingCount =>
+      _books.where((b) => b.status == BookStatus.reading).length;
+
+  /// 날짜별 독서 분 (달력/히트맵용)
+  Map<DateTime, int> get readingMinutesByDay {
+    final map = <DateTime, int>{};
+    for (final log in _readingLogs) {
+      if (log.active) continue;
+      final t = log.endTime ?? log.startTime;
+      final day = DateTime(t.year, t.month, t.day);
+      map[day] = (map[day] ?? 0) + log.recordedDuration.inMinutes;
+    }
+    return map;
+  }
+
+  Map<DateTime, int> get readingPagesByDay {
+    final map = <DateTime, int>{};
+    for (final log in _readingLogs) {
+      if (log.active) continue;
+      final t = log.endTime ?? log.startTime;
+      final day = DateTime(t.year, t.month, t.day);
+      map[day] = (map[day] ?? 0) + (log.pagesRead ?? 0);
+    }
+    return map;
+  }
+
+  /// 연속 독서 일수 (오늘 또는 어제부터 역산)
+  int get readingStreak {
+    final byDay = readingMinutesByDay;
+    if (byDay.isEmpty) return 0;
+    final now = DateTime.now();
+    var day = DateTime(now.year, now.month, now.day);
+    // 오늘 기록이 없으면 어제부터
+    if ((byDay[day] ?? 0) <= 0) {
+      day = day.subtract(const Duration(days: 1));
+    }
+    var streak = 0;
+    while ((byDay[day] ?? 0) > 0) {
+      streak++;
+      day = day.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
+  double get readingTodayGoalProgress {
+    if (_readingDailyGoalMinutes <= 0) return 0;
+    return (readingToday.inMinutes / _readingDailyGoalMinutes).clamp(0.0, 1.0);
+  }
+
+  bool get readingTodayGoalMet =>
+      readingToday.inMinutes >= _readingDailyGoalMinutes;
+
   // ── Load / Save ──────────────────────────────────────────────
 
   Future<void> load() async {
@@ -330,8 +584,25 @@ class AppState extends ChangeNotifier {
     _medicationDoses = await _storage.loadMedicationDoses();
     _medicationSets = await _storage.loadMedicationSets();
     _medicationSetDoses = await _storage.loadMedicationSetDoses();
+    _books = await _storage.loadBooks();
+    _readingLogs = await _storage.loadReadingLogs();
+    _selectedBookId = await _storage.loadSelectedBookId();
+    _readingDailyGoalMinutes = await _storage.loadReadingDailyGoalMinutes();
+    // 선택된 책이 삭제됐을 수 있음
+    if (_selectedBookId != null &&
+        !_books.any((b) => b.id == _selectedBookId)) {
+      _selectedBookId = null;
+    }
     final theme = await _storage.loadThemeMode();
     _themeMode = theme == 'dark' ? ThemeMode.dark : ThemeMode.light;
+    _lockEnabled = await _storage.loadLockEnabled();
+    _autoLockEnabled = await _storage.loadAutoLockEnabled();
+    _appPin = await _storage.loadAppPin();
+    _lastBackupAt = await _storage.loadLastBackupAt();
+    _autoBackupEnabled = await _storage.loadAutoBackupEnabled();
+    _autoBackupIntervalDays = await _storage.loadAutoBackupIntervalDays();
+    // 잠금 기능 켜져 있으면 앱 시작 시 잠금
+    _isLocked = _lockEnabled;
     _loaded = true;
     notifyListeners();
   }
@@ -349,6 +620,113 @@ class AppState extends ChangeNotifier {
     await setThemeMode(
       _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark,
     );
+  }
+
+  // ── App lock ─────────────────────────────────────────────────
+
+  /// 수동 잠금 (잠금 기능이 켜져 있을 때만)
+  void lockApp() {
+    if (!_lockEnabled) return;
+    if (_isLocked) return;
+    _isLocked = true;
+    notifyListeners();
+  }
+
+  /// 백그라운드 이탈 시 자동 잠금
+  void onAppPaused() {
+    if (!_lockEnabled || !_autoLockEnabled) return;
+    if (_isLocked) return;
+    _isLocked = true;
+    notifyListeners();
+  }
+
+  /// PIN 검증 후 잠금 해제. 성공 여부 반환.
+  bool unlockWithPin(String pin) {
+    if (!_lockEnabled) {
+      _isLocked = false;
+      notifyListeners();
+      return true;
+    }
+    if (pin == _appPin) {
+      _isLocked = false;
+      notifyListeners();
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> setLockEnabled(bool enabled) async {
+    _lockEnabled = enabled;
+    await _storage.saveLockEnabled(enabled);
+    if (!enabled) {
+      _isLocked = false;
+    } else {
+      // 켜는 즉시 잠금 상태로
+      _isLocked = true;
+    }
+    notifyListeners();
+  }
+
+  Future<void> setAutoLockEnabled(bool enabled) async {
+    _autoLockEnabled = enabled;
+    await _storage.saveAutoLockEnabled(enabled);
+    notifyListeners();
+  }
+
+  /// 현재 PIN 확인 (설정 변경용)
+  bool verifyPin(String pin) => pin == _appPin;
+
+  Future<bool> changePin({
+    required String currentPin,
+    required String newPin,
+  }) async {
+    if (currentPin != _appPin) return false;
+    final cleaned = newPin.trim();
+    if (cleaned.length < 4 || cleaned.length > 12) return false;
+    if (!RegExp(r'^\d+$').hasMatch(cleaned)) return false;
+    _appPin = cleaned;
+    await _storage.saveAppPin(cleaned);
+    notifyListeners();
+    return true;
+  }
+
+  // ── Backup export / import ───────────────────────────────────
+
+  /// 전체 데이터 JSON 문자열
+  Future<String> exportBackupJson() async {
+    final map = await _storage.exportBackup();
+    return const JsonEncoder.withIndent('  ').convert(map);
+  }
+
+  /// 백업 JSON으로 전체 교체 후 다시 로드
+  Future<void> importBackupJson(String jsonText) async {
+    final decoded = jsonDecode(jsonText);
+    if (decoded is! Map) {
+      throw FormatException('JSON 객체가 아닙니다.');
+    }
+    await _storage.importBackup(Map<String, dynamic>.from(decoded));
+    // load()는 잠금 on이면 잠금 상태로 시작 — 불러오기 직후는 열어 둠
+    await load();
+    _isLocked = false;
+    notifyListeners();
+  }
+
+  Future<void> markBackupCompleted([DateTime? when]) async {
+    _lastBackupAt = when ?? DateTime.now();
+    await _storage.saveLastBackupAt(_lastBackupAt!);
+    notifyListeners();
+  }
+
+  Future<void> setAutoBackupEnabled(bool enabled) async {
+    _autoBackupEnabled = enabled;
+    await _storage.saveAutoBackupEnabled(enabled);
+    notifyListeners();
+  }
+
+  Future<void> setAutoBackupIntervalDays(int days) async {
+    _autoBackupIntervalDays = days.clamp(1, 90);
+    await _storage.saveAutoBackupIntervalDays(_autoBackupIntervalDays);
+    notifyListeners();
   }
 
   Future<void> _persistSessions() async {
@@ -373,6 +751,14 @@ class AppState extends ChangeNotifier {
 
   Future<void> _persistMedicationSetDoses() async {
     await _storage.saveMedicationSetDoses(_medicationSetDoses);
+  }
+
+  Future<void> _persistBooks() async {
+    await _storage.saveBooks(_books);
+  }
+
+  Future<void> _persistReadingLogs() async {
+    await _storage.saveReadingLogs(_readingLogs);
   }
 
   // ── Session actions ──────────────────────────────────────────
@@ -718,10 +1104,240 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// UI 갱신용 틱 (활성 타이머 · 체크 경과 · 약 카운트다운)
+  // ── Reading / Book actions ───────────────────────────────────
+
+  Future<void> setSelectedBookId(String? id) async {
+    if (id != null && !_books.any((b) => b.id == id)) return;
+    _selectedBookId = id;
+    await _storage.saveSelectedBookId(id);
+    notifyListeners();
+  }
+
+  Future<void> setReadingDailyGoalMinutes(int minutes) async {
+    _readingDailyGoalMinutes = minutes.clamp(5, 600);
+    await _storage.saveReadingDailyGoalMinutes(_readingDailyGoalMinutes);
+    notifyListeners();
+  }
+
+  Future<Book?> addBook({
+    required String title,
+    String? author,
+    int? totalPages,
+    BookStatus status = BookStatus.reading,
+    String? note,
+    bool select = true,
+  }) async {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) return null;
+    final pages = totalPages != null && totalPages > 0 ? totalPages : null;
+
+    final book = Book(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      title: trimmed,
+      author: author?.trim().isEmpty == true ? null : author?.trim(),
+      totalPages: pages,
+      status: status,
+      createdAt: DateTime.now(),
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+    );
+    _books.add(book);
+    await _persistBooks();
+    if (select) {
+      _selectedBookId = book.id;
+      await _storage.saveSelectedBookId(book.id);
+    }
+    notifyListeners();
+    return book;
+  }
+
+  Future<void> updateBook(Book updated) async {
+    final idx = _books.indexWhere((b) => b.id == updated.id);
+    if (idx < 0) return;
+    final trimmed = updated.title.trim();
+    if (trimmed.isEmpty) return;
+    final pages =
+        updated.totalPages != null && updated.totalPages! > 0
+            ? updated.totalPages
+            : null;
+    var book = updated.copyWith(
+      title: trimmed,
+      author:
+          updated.author?.trim().isEmpty == true ? null : updated.author?.trim(),
+      totalPages: pages,
+      note: updated.note?.trim().isEmpty == true ? null : updated.note?.trim(),
+      clearAuthor: updated.author == null || updated.author!.trim().isEmpty,
+      clearTotalPages: pages == null,
+      clearNote: updated.note == null || updated.note!.trim().isEmpty,
+    );
+    if (book.status == BookStatus.completed && book.completedAt == null) {
+      book = book.copyWith(completedAt: DateTime.now());
+    }
+    if (book.status != BookStatus.completed) {
+      book = book.copyWith(clearCompletedAt: true);
+    }
+    _books[idx] = book;
+    await _persistBooks();
+    notifyListeners();
+  }
+
+  Future<void> setBookStatus(String id, BookStatus status) async {
+    final idx = _books.indexWhere((b) => b.id == id);
+    if (idx < 0) return;
+    var book = _books[idx].copyWith(status: status);
+    if (status == BookStatus.completed) {
+      book = book.copyWith(completedAt: DateTime.now());
+    } else {
+      book = book.copyWith(clearCompletedAt: true);
+    }
+    _books[idx] = book;
+    await _persistBooks();
+    notifyListeners();
+  }
+
+  Future<void> deleteBook(String id) async {
+    _books.removeWhere((b) => b.id == id);
+    _readingLogs.removeWhere((l) => l.bookId == id);
+    if (_selectedBookId == id) {
+      _selectedBookId = _books.isNotEmpty ? _books.first.id : null;
+      await _storage.saveSelectedBookId(_selectedBookId);
+    }
+    await _persistBooks();
+    await _persistReadingLogs();
+    notifyListeners();
+  }
+
+  Future<void> startReading({String? bookId, DateTime? startTime}) async {
+    if (activeReading != null) return;
+    final id = bookId ?? _selectedBookId;
+    if (id == null || !_books.any((b) => b.id == id)) return;
+
+    final now = DateTime.now();
+    var start = startTime ?? now;
+    start = DateTime(
+      start.year,
+      start.month,
+      start.day,
+      start.hour,
+      start.minute,
+    );
+    if (start.isAfter(now)) start = now;
+
+    // 읽는 중으로 상태 전환
+    final bookIdx = _books.indexWhere((b) => b.id == id);
+    if (bookIdx >= 0 &&
+        (_books[bookIdx].status == BookStatus.wishlist ||
+            _books[bookIdx].status == BookStatus.paused)) {
+      _books[bookIdx] = _books[bookIdx].copyWith(status: BookStatus.reading);
+      await _persistBooks();
+    }
+
+    _selectedBookId = id;
+    await _storage.saveSelectedBookId(id);
+
+    _readingLogs.add(
+      ReadingLog(
+        id: now.microsecondsSinceEpoch.toString(),
+        bookId: id,
+        startTime: start,
+        active: true,
+      ),
+    );
+    await _persistReadingLogs();
+    notifyListeners();
+  }
+
+  /// 활성 독서 종료. pagesRead 또는 from/to 페이지 기록.
+  Future<void> endReading({
+    int? pagesRead,
+    int? fromPage,
+    int? toPage,
+    String? note,
+  }) async {
+    final idx = _readingLogs.indexWhere((l) => l.active);
+    if (idx < 0) return;
+
+    var pages = pagesRead;
+    if (pages == null && fromPage != null && toPage != null && toPage >= fromPage) {
+      pages = toPage - fromPage;
+    }
+
+    _readingLogs[idx] = _readingLogs[idx].copyWith(
+      endTime: DateTime.now(),
+      active: false,
+      pagesRead: pages,
+      fromPage: fromPage,
+      toPage: toPage,
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+    );
+    await _persistReadingLogs();
+    notifyListeners();
+  }
+
+  Future<void> cancelReading() async {
+    final idx = _readingLogs.indexWhere((l) => l.active);
+    if (idx < 0) return;
+    _readingLogs.removeAt(idx);
+    await _persistReadingLogs();
+    notifyListeners();
+  }
+
+  /// 수동 독서 기록 (타이머 없이)
+  Future<void> logReadingManual({
+    required String bookId,
+    required DateTime when,
+    required int durationMinutes,
+    int? pagesRead,
+    int? fromPage,
+    int? toPage,
+    String? note,
+  }) async {
+    if (!_books.any((b) => b.id == bookId)) return;
+    if (durationMinutes <= 0 && (pagesRead == null || pagesRead <= 0)) return;
+
+    final minutes = durationMinutes < 0 ? 0 : durationMinutes;
+    final end = when;
+    final start = end.subtract(Duration(minutes: minutes > 0 ? minutes : 1));
+
+    var pages = pagesRead;
+    if (pages == null && fromPage != null && toPage != null && toPage >= fromPage) {
+      pages = toPage - fromPage;
+    }
+
+    _readingLogs.add(
+      ReadingLog(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        bookId: bookId,
+        startTime: start,
+        endTime: end,
+        pagesRead: pages,
+        fromPage: fromPage,
+        toPage: toPage,
+        note: note?.trim().isEmpty == true ? null : note?.trim(),
+        active: false,
+      ),
+    );
+
+    final bookIdx = _books.indexWhere((b) => b.id == bookId);
+    if (bookIdx >= 0 && _books[bookIdx].status == BookStatus.wishlist) {
+      _books[bookIdx] = _books[bookIdx].copyWith(status: BookStatus.reading);
+      await _persistBooks();
+    }
+
+    await _persistReadingLogs();
+    notifyListeners();
+  }
+
+  Future<void> deleteReadingLog(String id) async {
+    _readingLogs.removeWhere((l) => l.id == id && !l.active);
+    await _persistReadingLogs();
+    notifyListeners();
+  }
+
+  /// UI 갱신용 틱 (활성 타이머 · 체크 경과 · 약 카운트다운 · 독서)
   void tick() {
     if (activeFasting != null ||
         activeAbstinence != null ||
+        activeReading != null ||
         lastMasturbation != null ||
         _medications.any((m) => m.active && lastDose(m.id) != null) ||
         _medicationSets.any((s) => s.active && lastSetDose(s.id) != null)) {

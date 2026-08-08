@@ -18,6 +18,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color abstinenceSoft;
   final Color check;
   final Color checkSoft;
+  final Color reading;
+  final Color readingSoft;
   final Color success;
   final Color successSoft;
   final Color danger;
@@ -42,6 +44,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.abstinenceSoft,
     required this.check,
     required this.checkSoft,
+    required this.reading,
+    required this.readingSoft,
     required this.success,
     required this.successSoft,
     required this.danger,
@@ -68,6 +72,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     abstinenceSoft: Color(0xFFF0EDFF),
     check: Color(0xFFEF476F),
     checkSoft: Color(0xFFFFE9EF),
+    reading: Color(0xFF0D9488),
+    readingSoft: Color(0xFFE6F7F5),
     success: Color(0xFF10B981),
     successSoft: Color(0xFFE6F8F1),
     danger: Color(0xFFEF4444),
@@ -94,6 +100,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     abstinenceSoft: Color(0xFF241F45),
     check: Color(0xFFFF6B8A),
     checkSoft: Color(0xFF3A1F2A),
+    reading: Color(0xFF2DD4BF),
+    readingSoft: Color(0xFF12352F),
     success: Color(0xFF3DDC97),
     successSoft: Color(0xFF143528),
     danger: Color(0xFFFF5C5C),
@@ -124,6 +132,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? abstinenceSoft,
     Color? check,
     Color? checkSoft,
+    Color? reading,
+    Color? readingSoft,
     Color? success,
     Color? successSoft,
     Color? danger,
@@ -148,6 +158,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
       abstinenceSoft: abstinenceSoft ?? this.abstinenceSoft,
       check: check ?? this.check,
       checkSoft: checkSoft ?? this.checkSoft,
+      reading: reading ?? this.reading,
+      readingSoft: readingSoft ?? this.readingSoft,
       success: success ?? this.success,
       successSoft: successSoft ?? this.successSoft,
       danger: danger ?? this.danger,
@@ -177,6 +189,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
       abstinenceSoft: Color.lerp(abstinenceSoft, other.abstinenceSoft, t)!,
       check: Color.lerp(check, other.check, t)!,
       checkSoft: Color.lerp(checkSoft, other.checkSoft, t)!,
+      reading: Color.lerp(reading, other.reading, t)!,
+      readingSoft: Color.lerp(readingSoft, other.readingSoft, t)!,
       success: Color.lerp(success, other.success, t)!,
       successSoft: Color.lerp(successSoft, other.successSoft, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
@@ -212,6 +226,8 @@ class AppColors {
   static Color get abstinenceSoft => _p.abstinenceSoft;
   static Color get check => _p.check;
   static Color get checkSoft => _p.checkSoft;
+  static Color get reading => _p.reading;
+  static Color get readingSoft => _p.readingSoft;
   static Color get success => _p.success;
   static Color get successSoft => _p.successSoft;
   static Color get danger => _p.danger;

@@ -8,6 +8,7 @@ import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
 import '../utils/picker_theme.dart';
+import '../widgets/sticky_bottom_bar.dart';
 
 class MedicationScreen extends StatelessWidget {
   const MedicationScreen({super.key});
@@ -24,8 +25,11 @@ class MedicationScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
+        child: Column(
+          children: [
+            Expanded(
+              child: CustomScrollView(
+                slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
@@ -304,7 +308,7 @@ class MedicationScreen extends StatelessWidget {
                 )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
@@ -321,6 +325,35 @@ class MedicationScreen extends StatelessWidget {
                   ),
                 ),
             ],
+                ],
+              ),
+            ),
+            StickyBottomBar(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: StickyActionButton(
+                      label: '약 추가',
+                      icon: Icons.medication_rounded,
+                      color: c.warning,
+                      soft: c.warningSoft,
+                      filled: false,
+                      onTap: () => _showMedicationEditor(context),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: StickyActionButton(
+                      label: '세트 추가',
+                      icon: Icons.layers_rounded,
+                      color: c.warning,
+                      onTap: () => _showMedicationSetEditor(context),
+                      enabled: meds.isNotEmpty,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

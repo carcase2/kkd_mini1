@@ -13,6 +13,7 @@ import '../widgets/history_tile.dart';
 import '../widgets/preset_picker.dart';
 import '../widgets/start_session_sheet.dart';
 import '../widgets/stat_card.dart';
+import '../widgets/sticky_bottom_bar.dart';
 import '../widgets/timer_ring.dart';
 
 /// 단식 / 금욕 공용 트래킹 화면
@@ -213,183 +214,245 @@ class _ActiveView extends StatelessWidget {
             session.targetDuration!.inSeconds > 0
         ? (session.progress * 100).toStringAsFixed(0)
         : null;
+    final endColor =
+        reached || session.isOpenEnded ? AppColors.success : AppColors.danger;
+    final endSoft = reached || session.isOpenEnded
+        ? AppColors.successSoft
+        : AppColors.dangerSoft;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Text(
-                '$title 진행 중',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '$title 진행 중',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: onCancel,
+                      child: Text(
+                        '취소',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: onCancel,
-                child: Text(
-                  '취소',
-                  style: TextStyle(color: AppColors.textMuted),
+                const SizedBox(height: 8),
+                if (reached && session.targetDuration != null)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.successSoft,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.celebration_rounded,
+                          color: AppColors.success,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '목표 달성 · $pct% 완료. 원하는 만큼 더 이어가다 종료하세요',
+                            style: TextStyle(
+                              color: AppColors.success,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                TimerRing(
+                  elapsed: session.elapsed,
+                  target: session.targetDuration,
+                  color: accent,
+                  size: 260,
+                  label: title,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (reached && session.targetDuration != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.successSoft,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.celebration_rounded, color: AppColors.success, size: 20),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '목표 달성 · $pct% 완료. 원하는 만큼 더 이어가다 종료하세요',
-                      style: TextStyle(
-                        color: AppColors.success,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                const SizedBox(height: 20),
+                if (remaining != null && !reached) ...[
+                  Text(
+                    '남은 시간 ${formatDuration(remaining, short: true)}',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  // 한 줄 유지: 짧은 형식 + 필요 시 자동 축소
+                  SizedBox(
+                    width: double.infinity,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '완료 예정 ${DateFormat('M/d (E) HH:mm', 'ko').format(session.startTime.add(session.targetDuration!))}',
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        maxLines: 1,
                       ),
                     ),
                   ),
                 ],
-              ),
-            ),
-          const SizedBox(height: 24),
-          TimerRing(
-            elapsed: session.elapsed,
-            target: session.targetDuration,
-            color: accent,
-            size: 260,
-            label: title,
-          ),
-          const SizedBox(height: 20),
-          if (remaining != null && !reached)
-            Text(
-              '남은 시간 ${formatDuration(remaining, short: true)}',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          if (reached && pct != null)
-            Text(
-              '$pct% 완료 · 목표 초과 진행 중',
-              style: TextStyle(
-                color: AppColors.success,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          const SizedBox(height: 8),
-          Text(
-            '시작 ${DateFormat('M/d (E) HH:mm', 'ko').format(session.startTime)}',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-          ),
-          if (session.type == SessionType.fasting) ...[
-            const SizedBox(height: 24),
-            Builder(
-              builder: (context) {
-                final snap = fastingBenefitsFor(session.elapsed);
-                return _MilestoneBenefitsCard(
-                  headerTitle: '지금 몸의 변화',
-                  elapsed: session.elapsed,
-                  currentTitle: snap.current.title,
-                  currentSummary: snap.current.summary,
-                  currentBenefits: snap.current.benefits,
-                  nextTitle: snap.next?.title,
-                  nextSummary: snap.next?.summary,
-                  nextBenefits: snap.next?.benefits,
-                  untilNext: snap.untilNext,
-                  accent: accent,
-                  soft: soft,
-                );
-              },
-            ),
-          ],
-          if (session.type == SessionType.abstinence) ...[
-            const SizedBox(height: 24),
-            Builder(
-              builder: (context) {
-                final snap = abstinenceBenefitsFor(session.elapsed);
-                return _MilestoneBenefitsCard(
-                  headerTitle: '지금 나의 변화',
-                  elapsed: session.elapsed,
-                  currentTitle: snap.current.title,
-                  currentSummary: snap.current.summary,
-                  currentBenefits: snap.current.benefits,
-                  nextTitle: snap.next?.title,
-                  nextSummary: snap.next?.summary,
-                  nextBenefits: snap.next?.benefits,
-                  untilNext: snap.untilNext,
-                  accent: accent,
-                  soft: soft,
-                );
-              },
-            ),
-          ],
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: _ActionButton(
-              label: '종료',
-              icon: Icons.stop_rounded,
-              color: reached || session.isOpenEnded
-                  ? AppColors.success
-                  : AppColors.danger,
-              soft: reached || session.isOpenEnded
-                  ? AppColors.successSoft
-                  : AppColors.dangerSoft,
-              filled: true,
-              onTap: onEnd,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: soft,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: accent.withValues(alpha: 0.25)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '팁',
-                  style: TextStyle(
-                    color: accent,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
+                if (reached && pct != null)
+                  Text(
+                    '$pct% 완료 · 목표 초과 진행 중',
+                    style: TextStyle(
+                      color: AppColors.success,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
-                  session.type == SessionType.fasting
-                      ? '물, 무가당 차, 블랙 커피는 보통 단식 중 허용됩니다. 몸이 힘들면 무리하지 마세요.'
-                      : '충동이 올 때 자리 이동, 운동, 짧은 산책이 도움이 됩니다. 실패해도 다시 시작하면 됩니다.',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                    height: 1.4,
+                  '시작 ${DateFormat('M/d (E) HH:mm', 'ko').format(session.startTime)}',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (reached &&
+                    session.targetDuration != null &&
+                    session.startTime
+                        .add(session.targetDuration!)
+                        .isBefore(DateTime.now()))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.center,
+                        child: Text(
+                          '목표 시각 ${DateFormat('M/d (E) HH:mm', 'ko').format(session.startTime.add(session.targetDuration!))} 도달',
+                          style: TextStyle(
+                            color: AppColors.success,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (session.type == SessionType.fasting) ...[
+                  const SizedBox(height: 24),
+                  Builder(
+                    builder: (context) {
+                      final snap = fastingBenefitsFor(session.elapsed);
+                      return _MilestoneBenefitsCard(
+                        headerTitle: '지금 몸의 변화',
+                        elapsed: session.elapsed,
+                        currentTitle: snap.current.title,
+                        currentSummary: snap.current.summary,
+                        currentBenefits: snap.current.benefits,
+                        nextTitle: snap.next?.title,
+                        nextSummary: snap.next?.summary,
+                        nextBenefits: snap.next?.benefits,
+                        untilNext: snap.untilNext,
+                        accent: accent,
+                        soft: soft,
+                      );
+                    },
+                  ),
+                ],
+                if (session.type == SessionType.abstinence) ...[
+                  const SizedBox(height: 24),
+                  Builder(
+                    builder: (context) {
+                      final snap = abstinenceBenefitsFor(session.elapsed);
+                      return _MilestoneBenefitsCard(
+                        headerTitle: '지금 나의 변화',
+                        elapsed: session.elapsed,
+                        currentTitle: snap.current.title,
+                        currentSummary: snap.current.summary,
+                        currentBenefits: snap.current.benefits,
+                        nextTitle: snap.next?.title,
+                        nextSummary: snap.next?.summary,
+                        nextBenefits: snap.next?.benefits,
+                        untilNext: snap.untilNext,
+                        accent: accent,
+                        soft: soft,
+                      );
+                    },
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: soft,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: accent.withValues(alpha: 0.25)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '팁',
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        session.type == SessionType.fasting
+                            ? '물, 무가당 차, 블랙 커피는 보통 단식 중 허용됩니다. 몸이 힘들면 무리하지 마세요.'
+                            : '충동이 올 때 자리 이동, 운동, 짧은 산책이 도움이 됩니다. 실패해도 다시 시작하면 됩니다.',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+        StickyBottomBar(
+          child: StickyActionButton(
+            label: '종료',
+            icon: Icons.stop_rounded,
+            color: endColor,
+            soft: endSoft,
+            filled: true,
+            onTap: onEnd,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -593,60 +656,6 @@ class _MilestoneBenefitsCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final Color soft;
-  final bool filled;
-  final VoidCallback onTap;
-
-  const _ActionButton({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.soft,
-    required this.onTap,
-    this.filled = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: filled ? color : soft,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: filled
-                ? null
-                : Border.all(color: color.withValues(alpha: 0.35)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: filled ? Colors.white : color, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: filled ? Colors.white : color,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
