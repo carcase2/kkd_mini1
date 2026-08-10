@@ -25,6 +25,8 @@ class StorageService {
   static const _autoBackupEnabledKey = 'auto_backup_enabled';
   static const _autoBackupIntervalDaysKey = 'auto_backup_interval_days';
   static const _sessionNotificationsKey = 'session_notifications_enabled';
+  /// 실제 데이터가 마지막으로 바뀐 시각 (클라우드 LWW 비교용 — export 시각과 분리)
+  static const _dataRevisedAtKey = 'data_revised_at';
   static const defaultPin = '1850017';
   static const defaultAutoBackupIntervalDays = 7;
 
@@ -275,13 +277,118 @@ class StorageService {
     await prefs.setBool(_sessionNotificationsKey, enabled);
   }
 
+  /// 데이터가 마지막으로 수정된 시각 (UTC ISO). 없으면 null.
+  Future<DateTime?> loadDataRevisedAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_dataRevisedAtKey);
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw)?.toUtc();
+  }
+
+  /// 로컬 데이터 변경 시 호출. [when] 없으면 현재 시각.
+  Future<void> markDataRevised([DateTime? when]) async {
+    final prefs = await SharedPreferences.getInstance();
+    final t = (when ?? DateTime.now()).toUtc();
+    await prefs.setString(_dataRevisedAtKey, t.toIso8601String());
+  }
+
+  /// 백업 data 맵에서 가장 최근 기록 시각 추정.
+  /// 구버전 exportedAt은 push 시마다 now로 오염되어 비교에 쓰면 안 됨.
+  static DateTime? inferRevisedAtFromDataMap(Map<String, dynamic>? data) {
+    if (data == null) return null;
+    DateTime? maxAt;
+
+    void consider(DateTime? t) {
+      if (t == null) return;
+      final u = t.toUtc();
+      if (maxAt == null || u.isAfter(maxAt!)) maxAt = u;
+    }
+
+    void considerIso(dynamic v) {
+      if (v is String) consider(DateTime.tryParse(v));
+    }
+
+    void scanList(dynamic list, List<String> keys) {
+      if (list is! List) return;
+      for (final item in list) {
+        if (item is! Map) continue;
+        final m = Map<String, dynamic>.from(item);
+        for (final k in keys) {
+          considerIso(m[k]);
+        }
+      }
+    }
+
+    scanList(data['sessions'], ['startTime', 'endTime']);
+    scanList(data['masturbationLogs'], ['timestamp']);
+    scanList(data['medicationDoses'], ['takenAt']);
+    scanList(data['medicationSetDoses'], ['takenAt']);
+    scanList(data['medications'], ['createdAt']);
+    scanList(data['medicationSets'], ['createdAt']);
+    scanList(data['books'], ['createdAt', 'updatedAt']);
+    scanList(data['readingLogs'], ['startTime', 'endTime']);
+
+    return maxAt;
+  }
+
+  /// dataRevisedAt이 없을 때(구버전 업그레이드) 로컬 기록 시각으로 추정.
+  Future<DateTime?> inferDataRevisedAtFromContent() async {
+    final prefs = await SharedPreferences.getInstance();
+    return inferRevisedAtFromDataMap({
+      'sessions': _decodeList(prefs.getString(_sessionsKey)),
+      'masturbationLogs': _decodeList(prefs.getString(_masturbationKey)),
+      'medicationDoses': _decodeList(prefs.getString(_medicationDosesKey)),
+      'medicationSetDoses':
+          _decodeList(prefs.getString(_medicationSetDosesKey)),
+      'medications': _decodeList(prefs.getString(_medicationsKey)),
+      'medicationSets': _decodeList(prefs.getString(_medicationSetsKey)),
+      'books': _decodeList(prefs.getString(_booksKey)),
+      'readingLogs': _decodeList(prefs.getString(_readingLogsKey)),
+    });
+  }
+
+  /// 동기화 전에 dataRevisedAt이 없으면 내용에서 추정해 저장.
+  Future<DateTime?> ensureDataRevisedAt() async {
+    final existing = await loadDataRevisedAt();
+    if (existing != null) return existing;
+    final inferred = await inferDataRevisedAtFromContent();
+    if (inferred != null) {
+      await markDataRevised(inferred);
+      return inferred;
+    }
+    return null;
+  }
+
+  Future<void> _setDataRevisedAtRaw(String? iso) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (iso == null || iso.isEmpty) {
+      await prefs.remove(_dataRevisedAtKey);
+      return;
+    }
+    final parsed = DateTime.tryParse(iso)?.toUtc();
+    if (parsed == null) return;
+    await prefs.setString(_dataRevisedAtKey, parsed.toIso8601String());
+  }
+
   /// 전체 데이터 백업 (JSON 맵)
+  ///
+  /// - `exportedAt`: 이 백업 파일을 만든 시각 (표시·파일용)
+  /// - `dataRevisedAt`: 실제 데이터 수정 시각 (기기 간 동기화 비교용)
   Future<Map<String, dynamic>> exportBackup() async {
     final prefs = await SharedPreferences.getInstance();
+    var revisedRaw = prefs.getString(_dataRevisedAtKey);
+    // 저장된 값이 없으면 내용 추정 — now 로 찍으면 다른 기기 데이터를 덮어쓰는 버그가 재발함
+    if (revisedRaw == null || revisedRaw.isEmpty) {
+      final inferred = await inferDataRevisedAtFromContent();
+      revisedRaw = inferred?.toIso8601String();
+    }
+    final dataRevisedAt =
+        revisedRaw ?? DateTime.now().toUtc().toIso8601String();
     return {
       'app': 'discipline_tracker',
       'version': 1,
       'exportedAt': DateTime.now().toIso8601String(),
+      'dataRevisedAt': dataRevisedAt,
       'data': {
         'sessions': _decodeList(prefs.getString(_sessionsKey)),
         'masturbationLogs': _decodeList(prefs.getString(_masturbationKey)),
@@ -414,6 +521,12 @@ class StorageService {
         _sessionNotificationsKey,
         settings['sessionNotificationsEnabled'] == true,
       );
+    }
+
+    // 동기화 비교용 수정 시각 복원 (dataRevisedAt 우선, 구버전 백업은 exportedAt)
+    final revised = root['dataRevisedAt'] ?? root['exportedAt'];
+    if (revised is String && revised.isNotEmpty) {
+      await _setDataRevisedAtRaw(revised);
     }
   }
 

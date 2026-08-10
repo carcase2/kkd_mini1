@@ -6,6 +6,7 @@ import '../models/session.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../widgets/cloud_refresh.dart';
 import '../widgets/stat_card.dart';
 
 class StatsScreen extends StatelessWidget {
@@ -14,11 +15,15 @@ class StatsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final c = AppPalette.of(context);
 
     return Scaffold(
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
+        child: CloudRefresh(
+          color: c.success,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -378,6 +383,7 @@ class StatsScreen extends StatelessWidget {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

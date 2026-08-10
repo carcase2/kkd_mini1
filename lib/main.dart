@@ -80,6 +80,9 @@ class _DisciplineAppState extends State<DisciplineApp>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       context.read<AppState>().onAppPaused();
+    } else if (state == AppLifecycleState.resumed && _loggedIn) {
+      // 다른 기기(아이폰 등)에서 올린 단식·기록 반영
+      context.read<AppState>().syncCloud();
     }
   }
 

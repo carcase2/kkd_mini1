@@ -7,6 +7,7 @@ import '../models/book.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
+import '../widgets/cloud_refresh.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/sticky_bottom_bar.dart';
 import '../widgets/timer_ring.dart';
@@ -28,8 +29,11 @@ class ReadingScreen extends StatelessWidget {
         child: Column(
           children: [
             Expanded(
-              child: CustomScrollView(
-                slivers: [
+              child: CloudRefresh(
+                color: c.reading,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
@@ -335,6 +339,7 @@ class ReadingScreen extends StatelessWidget {
                       ),
                     ),
                 ],
+                ),
               ),
             ),
 

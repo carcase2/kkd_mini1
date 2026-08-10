@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../utils/abstinence_benefits.dart';
 import '../utils/fasting_benefits.dart';
 import '../utils/format.dart';
+import '../widgets/cloud_refresh.dart';
 import '../widgets/history_tile.dart';
 import '../widgets/preset_picker.dart';
 import '../widgets/start_session_sheet.dart';
@@ -223,10 +224,13 @@ class _ActiveView extends StatelessWidget {
     return Column(
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            child: Column(
-              children: [
+          child: CloudRefresh(
+            color: accent,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                children: [
                 Row(
                   children: [
                     Text(
@@ -439,6 +443,7 @@ class _ActiveView extends StatelessWidget {
                   ),
                 ),
               ],
+              ),
             ),
           ),
         ),
@@ -700,8 +705,11 @@ class _IdleView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
+    return CloudRefresh(
+      color: accent,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -846,6 +854,7 @@ class _IdleView extends StatelessWidget {
             ),
           ),
       ],
+      ),
     );
   }
 }

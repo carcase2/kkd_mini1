@@ -1,7 +1,7 @@
 {
-  "version": "1.0.6",
-  "build": 7,
-  "message": "이메일 로그인 · 재설치 후 클라우드 복원",
+  "version": "1.0.7",
+  "build": 10,
+  "message": "기기 간 클라우드 동기화 수정 · 당겨서 새로고침",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

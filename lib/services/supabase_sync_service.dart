@@ -113,11 +113,14 @@ class SupabaseSyncService {
       final uid = currentUser?.id;
       if (uid == null) return false;
 
-      await _client.from(_table).upsert({
-        'user_id': uid,
-        'payload': backupRoot,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      });
+      await _client.from(_table).upsert(
+        {
+          'user_id': uid,
+          'payload': backupRoot,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        onConflict: 'user_id',
+      );
       return true;
     } catch (e, st) {
       debugPrint('Supabase push failed: $e\n$st');
@@ -125,42 +128,99 @@ class SupabaseSyncService {
     }
   }
 
+  /// payload에서 실제 데이터 수정 시각 추출.
+  /// - dataRevisedAt 있으면 그대로 사용 (신규 클라)
+  /// - 없으면 exportedAt/updated_at 은 쓰지 않음 (구버전 버그로 now 오염됨)
+  ///   → 기록 내용의 최신 시각으로 추정
+  DateTime? _revisedAtOf(Map<String, dynamic> root) {
+    final explicit = root['dataRevisedAt'];
+    if (explicit != null) {
+      final parsed = DateTime.tryParse('$explicit')?.toUtc();
+      if (parsed != null) return parsed;
+    }
+    final data = root['data'];
+    if (data is Map) {
+      return StorageService.inferRevisedAtFromDataMap(
+        Map<String, dynamic>.from(data),
+      );
+    }
+    return null;
+  }
+
   /// 로컬 로드 후: 원격이 더 최신이면 import 후 true, 그 외 push하고 false
+  ///
+  /// 중요: `exportedAt`은 export 시마다 now로 찍히므로 비교에 쓰면 안 됨.
+  /// `dataRevisedAt`(실제 데이터 변경 시각)으로 LWW 한다.
   Future<bool> syncAfterLocalLoad(StorageService storage) async {
     if (!_ready) await init();
     if (!_ready || !isLoggedIn) return false;
 
     final remote = await pull();
+    // 구버전 업그레이드: 저장된 수정 시각이 없으면 기록 내용에서 추정
+    await storage.ensureDataRevisedAt();
     final local = await storage.exportBackup();
-    final localExportedAt =
-        DateTime.tryParse('${local['exportedAt']}')?.toUtc();
     final localEmpty = _isEffectivelyEmpty(local);
+    final localRevisedAt =
+        await storage.loadDataRevisedAt() ?? _revisedAtOf(local);
 
     if (remote == null) {
-      if (!localEmpty) await push(local);
+      if (!localEmpty) {
+        if (localRevisedAt == null) {
+          await storage.markDataRevised();
+        }
+        final payload = await storage.exportBackup();
+        await push(payload);
+      }
       return false;
     }
 
     final remoteEmpty = _isEffectivelyEmpty(remote.payload);
-    // 재설치 직후처럼 로컬이 비어 있으면 원격 우선 (exportedAt=now 로 덮어쓰기 방지)
+    // 재설치 직후처럼 로컬이 비어 있으면 원격 우선
     if (localEmpty && !remoteEmpty) {
       await storage.importBackup(remote.payload);
       return true;
     }
 
-    final remoteExportedAt =
-        DateTime.tryParse('${remote.payload['exportedAt']}')?.toUtc() ??
-            remote.updatedAt;
+    final remoteRevisedAt = _revisedAtOf(remote.payload);
+
+    // 로컬에 데이터가 있고 원격 수정 시각을 전혀 모르면 로컬 유지 후 push
+    if (!localEmpty && remoteRevisedAt == null) {
+      final payload = await storage.exportBackup();
+      await push(payload);
+      return false;
+    }
+
+    // 원격만 시각을 알면 원격 적용
+    if (localRevisedAt == null && !remoteEmpty && remoteRevisedAt != null) {
+      await storage.importBackup(remote.payload);
+      return true;
+    }
 
     final useRemote = !remoteEmpty &&
-        (localExportedAt == null || remoteExportedAt.isAfter(localExportedAt));
+        localRevisedAt != null &&
+        remoteRevisedAt != null &&
+        remoteRevisedAt.isAfter(localRevisedAt);
 
     if (useRemote) {
       await storage.importBackup(remote.payload);
       return true;
     }
 
-    if (!localEmpty) await push(local);
+    // 동일 시각이면 불필요한 push 생략
+    if (!localEmpty &&
+        localRevisedAt != null &&
+        remoteRevisedAt != null &&
+        remoteRevisedAt.isAtSameMomentAs(localRevisedAt)) {
+      return false;
+    }
+
+    if (!localEmpty) {
+      if (localRevisedAt == null) {
+        await storage.markDataRevised();
+      }
+      final payload = await storage.exportBackup();
+      await push(payload);
+    }
     return false;
   }
 

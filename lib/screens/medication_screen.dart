@@ -8,6 +8,7 @@ import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
 import '../utils/picker_theme.dart';
+import '../widgets/cloud_refresh.dart';
 import '../widgets/sticky_bottom_bar.dart';
 
 class MedicationScreen extends StatelessWidget {
@@ -28,8 +29,11 @@ class MedicationScreen extends StatelessWidget {
         child: Column(
           children: [
             Expanded(
-              child: CustomScrollView(
-                slivers: [
+              child: CloudRefresh(
+                color: c.warning,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
@@ -325,7 +329,8 @@ class MedicationScreen extends StatelessWidget {
                   ),
                 ),
             ],
-                ],
+                  ],
+                ),
               ),
             ),
             StickyBottomBar(

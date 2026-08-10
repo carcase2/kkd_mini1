@@ -612,6 +612,20 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// 당겨서 새로고침: 클라우드 동기화 후 항상 로컬 상태 재로드
+  Future<void> refreshFromCloud() async {
+    try {
+      await syncCloud();
+    } catch (_) {
+      // 오프라인 등
+    }
+    await _loadFromStorage();
+    notifyListeners();
+    if (_sessionNotificationsEnabled) {
+      await NotificationService.instance.rescheduleActiveSessions(_sessions);
+    }
+  }
+
   Future<void> _loadFromStorage() async {
     _sessions = await _storage.loadSessions();
     _masturbationLogs = await _storage.loadMasturbationLogs();
@@ -665,8 +679,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 백그라운드 이탈 시 자동 잠금
+  /// 백그라운드 이탈 시 자동 잠금 + 대기 중인 클라우드 업로드 즉시 전송
   void onAppPaused() {
+    // 다른 기기로 바로 넘어가기 전에 단식 등 변경분이 올라가도록
+    unawaited(flushCloudSync());
     if (!_lockEnabled || !_autoLockEnabled) return;
     if (_isLocked) return;
     _isLocked = true;
@@ -780,13 +796,31 @@ class AppState extends ChangeNotifier {
   void _queueCloudSync() {
     if (!_cloudSyncEnabled) return;
     _cloudSyncDebounce?.cancel();
-    _cloudSyncDebounce = Timer(const Duration(seconds: 5), () async {
-      try {
-        if (!_cloud.isReady) await _cloud.init();
-        final payload = await _storage.exportBackup();
-        await _cloud.push(payload);
-      } catch (_) {}
+    _cloudSyncDebounce = Timer(const Duration(seconds: 5), () {
+      unawaited(_pushCloudNow());
     });
+  }
+
+  /// 디바운스 대기 없이 즉시 클라우드에 업로드 (앱 백그라운드 전환 시 등)
+  Future<void> flushCloudSync() async {
+    if (!_cloudSyncEnabled) return;
+    _cloudSyncDebounce?.cancel();
+    _cloudSyncDebounce = null;
+    await _pushCloudNow();
+  }
+
+  Future<void> _pushCloudNow() async {
+    try {
+      if (!_cloud.isReady) await _cloud.init();
+      if (!_cloud.isLoggedIn) return;
+      final payload = await _storage.exportBackup();
+      final ok = await _cloud.push(payload);
+      if (!ok) {
+        debugPrint('Cloud push returned false');
+      }
+    } catch (e, st) {
+      debugPrint('Cloud push error: $e\n$st');
+    }
   }
 
   Future<void> setSessionNotificationsEnabled(bool enabled) async {
@@ -802,44 +836,49 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _markDataChangedAndQueue() async {
+    await _storage.markDataRevised();
+    _queueAutoBackup();
+  }
+
   Future<void> _persistSessions() async {
     await _storage.saveSessions(_sessions);
-    _queueAutoBackup();
+    await _markDataChangedAndQueue();
   }
 
   Future<void> _persistMasturbation() async {
     await _storage.saveMasturbationLogs(_masturbationLogs);
-    _queueAutoBackup();
+    await _markDataChangedAndQueue();
   }
 
   Future<void> _persistMedications() async {
     await _storage.saveMedications(_medications);
-    _queueAutoBackup();
+    await _markDataChangedAndQueue();
   }
 
   Future<void> _persistMedicationDoses() async {
     await _storage.saveMedicationDoses(_medicationDoses);
-    _queueAutoBackup();
+    await _markDataChangedAndQueue();
   }
 
   Future<void> _persistMedicationSets() async {
     await _storage.saveMedicationSets(_medicationSets);
-    _queueAutoBackup();
+    await _markDataChangedAndQueue();
   }
 
   Future<void> _persistMedicationSetDoses() async {
     await _storage.saveMedicationSetDoses(_medicationSetDoses);
-    _queueAutoBackup();
+    await _markDataChangedAndQueue();
   }
 
   Future<void> _persistBooks() async {
     await _storage.saveBooks(_books);
-    _queueAutoBackup();
+    await _markDataChangedAndQueue();
   }
 
   Future<void> _persistReadingLogs() async {
     await _storage.saveReadingLogs(_readingLogs);
-    _queueAutoBackup();
+    await _markDataChangedAndQueue();
   }
 
   // ── Session actions ──────────────────────────────────────────

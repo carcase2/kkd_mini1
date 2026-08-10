@@ -10,6 +10,7 @@ import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_version.dart';
 import '../utils/format.dart';
+import '../widgets/cloud_refresh.dart';
 import '../widgets/timer_ring.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -54,8 +55,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
+        child: CloudRefresh(
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
             // 업데이트 배너
             if (_update != null && !_updateDismissed)
               SliverToBoxAdapter(
@@ -135,6 +138,17 @@ class _HomeScreenState extends State<HomeScreen> {
                           tooltip: '더보기',
                           onSelected: (v) async {
                             if (v == 'backup') _showBackupSheet(context);
+                            if (v == 'sync') {
+                              final messenger = ScaffoldMessenger.of(context);
+                              await context.read<AppState>().refreshFromCloud();
+                              if (!context.mounted) return;
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('클라우드와 동기화했습니다'),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
                             if (v == 'lock') _showLockSettings(context);
                             if (v == 'lock_now') {
                               context.read<AppState>().lockApp();
@@ -185,6 +199,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               const PopupMenuItem(
                                 value: 'backup',
                                 child: Text('백업 · 내보내기'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'sync',
+                                child: Text('클라우드 동기화'),
                               ),
                               const PopupMenuItem(
                                 value: 'lock',
@@ -440,6 +458,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

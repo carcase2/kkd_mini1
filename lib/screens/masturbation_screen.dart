@@ -7,6 +7,7 @@ import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
 import '../utils/picker_theme.dart';
+import '../widgets/cloud_refresh.dart';
 import '../widgets/history_tile.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/sticky_bottom_bar.dart';
@@ -31,8 +32,11 @@ class MasturbationScreen extends StatelessWidget {
         child: Column(
           children: [
             Expanded(
-              child: CustomScrollView(
-                slivers: [
+              child: CloudRefresh(
+                color: AppColors.check,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -283,6 +287,7 @@ class MasturbationScreen extends StatelessWidget {
                 ),
               ),
                 ],
+                ),
               ),
             ),
             StickyBottomBar(
