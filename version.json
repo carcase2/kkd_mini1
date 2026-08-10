@@ -1,6 +1,6 @@
 {
   "version": "1.0.7",
-  "build": 10,
+  "build": 11,
   "message": "기기 간 클라우드 동기화 수정 · 당겨서 새로고침",
   "force": false,
   "apkUrl": "",
