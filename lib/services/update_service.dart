@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/app_version.dart';
@@ -27,6 +28,9 @@ class AppUpdateInfo {
   });
 
   String get label => 'v$latestVersion';
+
+  /// 닫기 기억용 키 (버전+빌드)
+  String get dismissKey => '$latestVersion+${latestBuild ?? 0}';
 }
 
 class UpdateService {
@@ -34,11 +38,15 @@ class UpdateService {
   static const checkUrl =
       'https://raw.githubusercontent.com/carcase2/kkd_mini1/main/version.json';
 
+  static const _dismissedKey = 'update_dismissed_for';
+
   static Future<AppUpdateInfo?> checkForUpdate() async {
     try {
-      final res = await http
-          .get(Uri.parse(checkUrl))
-          .timeout(const Duration(seconds: 8));
+      // 캐시로 옛 version.json이 남지 않도록 쿼리 추가
+      final uri = Uri.parse(checkUrl).replace(
+        queryParameters: {'t': '${DateTime.now().millisecondsSinceEpoch}'},
+      );
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) return null;
 
       final map = jsonDecode(utf8.decode(res.bodyBytes));
@@ -52,12 +60,15 @@ class UpdateService {
           ? data['build'] as int
           : int.tryParse('${data['build'] ?? ''}');
 
+      // PackageInfo 우선, 실패 시 AppVersion (main에서 load됨)
+      await AppVersion.load();
       var localVersion = AppVersion.version;
-      int? localBuild;
+      int? localBuild = AppVersion.buildNumber;
       try {
         final info = await PackageInfo.fromPlatform();
-        localVersion = info.version;
-        localBuild = int.tryParse(info.buildNumber);
+        final v = info.version.trim();
+        if (v.isNotEmpty) localVersion = v;
+        localBuild = int.tryParse(info.buildNumber.trim()) ?? localBuild;
       } catch (_) {}
 
       final newer = _isNewer(
@@ -68,7 +79,7 @@ class UpdateService {
       );
       if (!newer) return null;
 
-      return AppUpdateInfo(
+      final info = AppUpdateInfo(
         latestVersion: remoteVersion,
         latestBuild: remoteBuild,
         message: (data['message'] as String?)?.trim() ?? '',
@@ -77,9 +88,26 @@ class UpdateService {
         apkUrl: _str(data['apkUrl']),
         downloadUrl: _str(data['downloadUrl']),
       );
+
+      // 선택 업데이트는 닫아 두면 같은 버전에 대해 다시 안 띄움
+      if (!info.force && await isDismissed(info)) {
+        return null;
+      }
+
+      return info;
     } catch (_) {
       return null;
     }
+  }
+
+  static Future<bool> isDismissed(AppUpdateInfo info) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_dismissedKey) == info.dismissKey;
+  }
+
+  static Future<void> dismiss(AppUpdateInfo info) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dismissedKey, info.dismissKey);
   }
 
   static String? _str(dynamic v) {
@@ -88,7 +116,8 @@ class UpdateService {
     return s;
   }
 
-  /// version 우선 비교, 같으면 build 비교
+  /// version 우선 비교, 같으면 build 비교.
+  /// 로컬이 원격과 같거나 더 새면 false.
   static bool _isNewer({
     required String remoteVersion,
     required int? remoteBuild,
@@ -96,18 +125,20 @@ class UpdateService {
     required int? localBuild,
   }) {
     final cmp = _compareSemver(remoteVersion, localVersion);
-    if (cmp > 0) return true;
-    if (cmp < 0) return false;
+    if (cmp > 0) return true; // remote 더 새음
+    if (cmp < 0) return false; // local 더 새음
+    // 버전 문자열 동일 → 빌드 번호
     if (remoteBuild != null && localBuild != null) {
       return remoteBuild > localBuild;
     }
+    // 빌드 정보 부족하면 업데이트 없음으로 간주 (오탐 방지)
     return false;
   }
 
   /// a > b → 1, a == b → 0, a < b → -1
   static int _compareSemver(String a, String b) {
-    final pa = a.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-    final pb = b.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final pa = a.split('.').map((e) => int.tryParse(e.trim()) ?? 0).toList();
+    final pb = b.split('.').map((e) => int.tryParse(e.trim()) ?? 0).toList();
     while (pa.length < 3) {
       pa.add(0);
     }

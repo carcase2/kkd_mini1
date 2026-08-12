@@ -3,11 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
-import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_version.dart';
 
 /// 앱 잠금 해제 화면 (PIN 입력)
+///
+/// 업데이트 배너는 여기에 두지 않는다. 상단 카드가 키패드를 밀어내
+/// 비밀번호 입력이 막히는 문제를 피하기 위함. 업데이트는 홈에서만 안내.
 class LockScreen extends StatefulWidget {
   const LockScreen({super.key});
 
@@ -19,7 +21,6 @@ class _LockScreenState extends State<LockScreen>
     with SingleTickerProviderStateMixin {
   String _input = '';
   String? _error;
-  AppUpdateInfo? _update;
   late AnimationController _shake;
 
   @override
@@ -29,13 +30,6 @@ class _LockScreenState extends State<LockScreen>
       vsync: this,
       duration: const Duration(milliseconds: 420),
     );
-    _checkUpdate();
-  }
-
-  Future<void> _checkUpdate() async {
-    final info = await UpdateService.checkForUpdate();
-    if (!mounted || info == null) return;
-    setState(() => _update = info);
   }
 
   @override
@@ -101,102 +95,112 @@ class _LockScreenState extends State<LockScreen>
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
-        child: Column(
-          children: [
-            if (_update != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                child: _LockUpdateBanner(
-                  info: _update!,
-                  colors: c,
-                  onTap: () => UpdateService.openUpdate(_update!),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              // 작은 화면에서도 키패드가 잘리지 않도록
+              physics: const ClampingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      const Spacer(flex: 2),
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: c.fastingSoft,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: c.fasting.withValues(alpha: 0.25),
+                          ),
+                          boxShadow: appCardShadow(c),
+                        ),
+                        child: Icon(
+                          Icons.lock_rounded,
+                          color: c.fasting,
+                          size: 34,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        '절제',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: c.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppVersion.label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: c.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '비밀번호를 입력한 뒤 확인을 누르세요',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: c.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      AnimatedBuilder(
+                        animation: _shake,
+                        builder: (context, child) {
+                          final t = _shake.value;
+                          final dx = (t < 1)
+                              ? (20 *
+                                  (1 - t) *
+                                  ((t * 10).floor().isEven ? 1 : -1) *
+                                  (t < 0.05 ? 0 : 1))
+                              : 0.0;
+                          return Transform.translate(
+                            offset: Offset(dx, 0),
+                            child: child,
+                          );
+                        },
+                        child: _PinSlots(
+                          colors: c,
+                          input: _input,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        height: 20,
+                        child: Text(
+                          _error ?? '',
+                          style: TextStyle(
+                            color: c.danger,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 36),
+                        child: _PinPad(
+                          colors: c,
+                          onDigit: _onDigit,
+                          onBackspace: _onBackspace,
+                          onClear: _onClear,
+                          onSubmit: _tryUnlock,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                    ],
+                  ),
                 ),
               ),
-            const Spacer(flex: 2),
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: c.fastingSoft,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: c.fasting.withValues(alpha: 0.25)),
-                boxShadow: appCardShadow(c),
-              ),
-              child: Icon(Icons.lock_rounded, color: c.fasting, size: 34),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              '절제',
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                color: c.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              AppVersion.label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: c.textMuted,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '비밀번호를 입력한 뒤 확인을 누르세요',
-              style: TextStyle(
-                fontSize: 14,
-                color: c.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 28),
-            AnimatedBuilder(
-              animation: _shake,
-              builder: (context, child) {
-                final t = _shake.value;
-                final dx = (t < 1)
-                    ? (20 *
-                        (1 - t) *
-                        ((t * 10).floor().isEven ? 1 : -1) *
-                        (t < 0.05 ? 0 : 1))
-                    : 0.0;
-                return Transform.translate(
-                  offset: Offset(dx, 0),
-                  child: child,
-                );
-              },
-              child: _PinSlots(
-                colors: c,
-                input: _input,
-              ),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 20,
-              child: Text(
-                _error ?? '',
-                style: TextStyle(
-                  color: c.danger,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 36),
-              child: _PinPad(
-                colors: c,
-                onDigit: _onDigit,
-                onBackspace: _onBackspace,
-                onClear: _onClear,
-                onSubmit: _tryUnlock,
-              ),
-            ),
-            const SizedBox(height: 28),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -249,73 +253,6 @@ class _PinSlots extends StatelessWidget {
           ),
         );
       }),
-    );
-  }
-}
-
-class _LockUpdateBanner extends StatelessWidget {
-  final AppUpdateInfo info;
-  final AppPalette colors;
-  final VoidCallback onTap;
-
-  const _LockUpdateBanner({
-    required this.info,
-    required this.colors,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: colors.fasting.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.fasting.withValues(alpha: 0.35)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.system_update_rounded, color: colors.fasting, size: 26),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '새 버전 ${info.label} 출시',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      info.message.isNotEmpty
-                          ? info.message
-                          : '눌러서 업데이트하기',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: colors.fasting),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -417,9 +354,7 @@ class _KeyButton extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: emphasize
-                ? null
-                : Border.all(color: colors.border),
+            border: emphasize ? null : Border.all(color: colors.border),
             boxShadow: isAction || emphasize ? null : appCardShadow(colors),
           ),
           child: label == '⌫'

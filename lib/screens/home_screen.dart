@@ -38,6 +38,14 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _update = info);
   }
 
+  Future<void> _dismissUpdate() async {
+    final info = _update;
+    if (info == null) return;
+    await UpdateService.dismiss(info);
+    if (!mounted) return;
+    setState(() => _updateDismissed = true);
+  }
+
   void _goTo(int index) => widget.onNavigate(index);
 
   @override
@@ -68,9 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     info: _update!,
                     colors: c,
                     onUpdate: () => UpdateService.openUpdate(_update!),
-                    onDismiss: _update!.force
-                        ? null
-                        : () => setState(() => _updateDismissed = true),
+                    onDismiss: _update!.force ? null : _dismissUpdate,
                   ),
                 ),
               ),
