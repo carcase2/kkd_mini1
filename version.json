@@ -1,7 +1,7 @@
 {
   "version": "1.0.8",
-  "build": 12,
-  "message": "업데이트 안내·잠금 화면 개선",
+  "build": 13,
+  "message": "세션 완료 알림 보완 · 잠금 화면 개선",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

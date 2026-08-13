@@ -8,7 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 class AppVersion {
   static String _label = 'v1.0.8';
   static String _full = '1.0.8';
-  static int? _buildNumber = 12;
+  static int? _buildNumber = 13;
   static bool _loaded = false;
 
   /// 표시용 (v1.0.8)
@@ -35,7 +35,7 @@ class AppVersion {
       // pubspec 기본값 유지
       _label = 'v1.0.8';
       _full = '1.0.8';
-      _buildNumber = 12;
+      _buildNumber = 13;
     }
   }
 }
