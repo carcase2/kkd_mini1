@@ -1,7 +1,7 @@
 {
-  "version": "1.0.7",
-  "build": 11,
-  "message": "기기 간 클라우드 동기화 수정 · 당겨서 새로고침",
+  "version": "1.0.8",
+  "build": 12,
+  "message": "업데이트 안내·잠금 화면 개선",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

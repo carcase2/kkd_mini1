@@ -586,8 +586,9 @@ class AppState extends ChangeNotifier {
     _loaded = true;
     notifyListeners();
 
-    // 활성 세션 알림 재예약
+    // 활성 세션 알림 재예약 (지난 완료 시각이면 즉시 알림)
     if (_sessionNotificationsEnabled) {
+      await NotificationService.instance.requestPermission();
       await NotificationService.instance.rescheduleActiveSessions(_sessions);
     }
 
@@ -687,6 +688,12 @@ class AppState extends ChangeNotifier {
     if (_isLocked) return;
     _isLocked = true;
     notifyListeners();
+  }
+
+  /// 포그라운드 복귀 시 놓친 완료 알림 보완 + 예약 재확인
+  Future<void> onAppResumed() async {
+    if (!_sessionNotificationsEnabled) return;
+    await NotificationService.instance.rescheduleActiveSessions(_sessions);
   }
 
   /// PIN 검증 후 잠금 해제. 성공 여부 반환.
@@ -828,7 +835,9 @@ class AppState extends ChangeNotifier {
     await _storage.saveSessionNotificationsEnabled(enabled);
     NotificationService.instance.setEnabled(enabled);
     if (enabled) {
-      await NotificationService.instance.requestPermission();
+      await NotificationService.instance.requestPermission(
+        requestExactAlarm: true,
+      );
       await NotificationService.instance.rescheduleActiveSessions(_sessions);
     } else {
       await NotificationService.instance.cancelAllSessionAlarms();
@@ -919,7 +928,9 @@ class AppState extends ChangeNotifier {
     _sessions.add(session);
     await _persistSessions();
     if (_sessionNotificationsEnabled && targetDuration != null) {
-      await NotificationService.instance.requestPermission();
+      await NotificationService.instance.requestPermission(
+        requestExactAlarm: true,
+      );
       await NotificationService.instance.scheduleSessionMilestones(session);
     }
     notifyListeners();
@@ -1461,6 +1472,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _reachNotifyBusy = false;
+
   /// UI 갱신용 틱 (활성 타이머 · 체크 경과 · 약 카운트다운 · 독서)
   void tick() {
     if (activeFasting != null ||
@@ -1470,6 +1483,24 @@ class AppState extends ChangeNotifier {
         _medications.any((m) => m.active && lastDose(m.id) != null) ||
         _medicationSets.any((s) => s.active && lastSetDose(s.id) != null)) {
       notifyListeners();
+    }
+    unawaited(_maybeNotifyReachedTargets());
+  }
+
+  Future<void> _maybeNotifyReachedTargets() async {
+    if (!_sessionNotificationsEnabled || _reachNotifyBusy) return;
+    final reached = <TrackingSession>[
+      if (activeFasting?.isTargetReached == true) activeFasting!,
+      if (activeAbstinence?.isTargetReached == true) activeAbstinence!,
+    ];
+    if (reached.isEmpty) return;
+    _reachNotifyBusy = true;
+    try {
+      await NotificationService.instance.notifyReachedTargets(reached);
+    } catch (_) {
+      // 알림 실패해도 타이머는 계속
+    } finally {
+      _reachNotifyBusy = false;
     }
   }
 }
