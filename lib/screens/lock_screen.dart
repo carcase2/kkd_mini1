@@ -1,12 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
+import '../services/biometric_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_version.dart';
 
-/// 앱 잠금 해제 화면 (PIN 입력)
+/// 앱 잠금 해제 화면 (Face ID 또는 PIN 입력)
 ///
 /// 업데이트 배너는 여기에 두지 않는다. 상단 카드가 키패드를 밀어내
 /// 비밀번호 입력이 막히는 문제를 피하기 위함. 업데이트는 홈에서만 안내.
@@ -18,24 +21,86 @@ class LockScreen extends StatefulWidget {
 }
 
 class _LockScreenState extends State<LockScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   String _input = '';
   String? _error;
   late AnimationController _shake;
 
+  bool _biometricAvailable = false;
+  String _biometricLabel = 'Face ID';
+  bool _authenticating = false;
+  bool _wasBackgrounded = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _shake = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 420),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_prepareBiometric(autoPrompt: true));
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(BiometricService.instance.cancel());
     _shake.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _wasBackgrounded = true;
+    } else if (state == AppLifecycleState.resumed &&
+        _wasBackgrounded &&
+        !_authenticating) {
+      _wasBackgrounded = false;
+      unawaited(_prepareBiometric(autoPrompt: true));
+    }
+  }
+
+  Future<void> _prepareBiometric({required bool autoPrompt}) async {
+    final app = context.read<AppState>();
+    if (!app.biometricUnlockEnabled) {
+      if (mounted) setState(() => _biometricAvailable = false);
+      return;
+    }
+    final available = await BiometricService.instance.isAvailable();
+    if (!mounted) return;
+    setState(() {
+      _biometricAvailable = available;
+      _biometricLabel = BiometricService.instance.label;
+    });
+    if (autoPrompt && available) {
+      await _unlockWithBiometric();
+    }
+  }
+
+  Future<void> _unlockWithBiometric() async {
+    if (_authenticating) return;
+    final app = context.read<AppState>();
+    if (!app.biometricUnlockEnabled) return;
+
+    setState(() {
+      _authenticating = true;
+      _error = null;
+    });
+    final ok = await BiometricService.instance.authenticate(
+      reason: '$_biometricLabel로 잠금을 해제하세요',
+    );
+    if (!mounted) return;
+    setState(() => _authenticating = false);
+    if (ok) {
+      HapticFeedback.mediumImpact();
+      app.unlockWithBiometric();
+      return;
+    }
   }
 
   static const _maxPinLen = 12;
@@ -106,21 +171,35 @@ class _LockScreenState extends State<LockScreen>
                   child: Column(
                     children: [
                       const Spacer(flex: 2),
-                      Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          color: c.fastingSoft,
+                      Material(
+                        color: c.fastingSoft,
+                        borderRadius: BorderRadius.circular(22),
+                        child: InkWell(
+                          onTap: _biometricAvailable
+                              ? _unlockWithBiometric
+                              : null,
                           borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: c.fasting.withValues(alpha: 0.25),
+                          child: Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                color: c.fasting.withValues(alpha: 0.25),
+                              ),
+                              boxShadow: appCardShadow(c),
+                            ),
+                            child: Icon(
+                              _biometricAvailable
+                                  ? (_biometricLabel == '지문' ||
+                                          _biometricLabel == 'Touch ID'
+                                      ? Icons.fingerprint_rounded
+                                      : Icons.face_unlock_rounded)
+                                  : Icons.lock_rounded,
+                              color: c.fasting,
+                              size: 34,
+                            ),
                           ),
-                          boxShadow: appCardShadow(c),
-                        ),
-                        child: Icon(
-                          Icons.lock_rounded,
-                          color: c.fasting,
-                          size: 34,
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -143,7 +222,9 @@ class _LockScreenState extends State<LockScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '비밀번호를 입력한 뒤 확인을 누르세요',
+                        _biometricAvailable
+                            ? '$_biometricLabel 또는 비밀번호로 잠금을 해제하세요'
+                            : '비밀번호를 입력한 뒤 확인을 누르세요',
                         style: TextStyle(
                           fontSize: 14,
                           color: c.textSecondary,
@@ -183,6 +264,25 @@ class _LockScreenState extends State<LockScreen>
                           ),
                         ),
                       ),
+                      if (_biometricAvailable)
+                        TextButton.icon(
+                          onPressed:
+                              _authenticating ? null : _unlockWithBiometric,
+                          icon: Icon(
+                            _biometricLabel == '지문' ||
+                                    _biometricLabel == 'Touch ID'
+                                ? Icons.fingerprint_rounded
+                                : Icons.face_unlock_rounded,
+                            size: 20,
+                          ),
+                          label: Text(
+                            '$_biometricLabel로 잠금 해제',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: c.fasting,
+                          ),
+                        ),
                       const Spacer(),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 36),

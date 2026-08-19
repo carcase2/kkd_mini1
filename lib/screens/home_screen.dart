@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
 import '../services/backup_service.dart';
+import '../services/biometric_service.dart';
 import '../services/supabase_sync_service.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
@@ -1171,8 +1172,57 @@ class _BackupSheetState extends State<_BackupSheet> {
   }
 }
 
-class _LockSettingsSheet extends StatelessWidget {
+class _LockSettingsSheet extends StatefulWidget {
   const _LockSettingsSheet();
+
+  @override
+  State<_LockSettingsSheet> createState() => _LockSettingsSheetState();
+}
+
+class _LockSettingsSheetState extends State<_LockSettingsSheet> {
+  bool _biometricReady = false;
+  String _biometricLabel = 'Face ID';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBiometric();
+  }
+
+  Future<void> _loadBiometric() async {
+    final ready = await BiometricService.instance.isAvailable();
+    if (!mounted) return;
+    setState(() {
+      _biometricReady = ready;
+      _biometricLabel = BiometricService.instance.label;
+    });
+  }
+
+  Future<void> _onBiometricChanged(bool enabled) async {
+    if (enabled) {
+      if (!_biometricReady) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('이 기기에서 $_biometricLabel를 사용할 수 없습니다'),
+          ),
+        );
+        return;
+      }
+      final ok = await BiometricService.instance.authenticate(
+        reason: '$_biometricLabel 사용을 확인합니다',
+      );
+      if (!ok) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$_biometricLabel 인증에 실패했습니다')),
+        );
+        return;
+      }
+    }
+    if (!mounted) return;
+    await context.read<AppState>().setBiometricUnlockEnabled(enabled);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1218,7 +1268,7 @@ class _LockSettingsSheet extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '앱 시작·백그라운드 복귀 시 비밀번호로 보호합니다.',
+            '앱 시작·백그라운드 복귀 시 Face ID 또는 비밀번호로 보호합니다.',
             style: TextStyle(fontSize: 13, color: c.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 16),
@@ -1238,6 +1288,29 @@ class _LockSettingsSheet extends StatelessWidget {
             value: state.lockEnabled,
             activeThumbColor: c.fasting,
             onChanged: (v) => context.read<AppState>().setLockEnabled(v),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              '$_biometricLabel로 잠금 해제',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: c.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              _biometricReady
+                  ? '비밀번호 대신 $_biometricLabel를 사용할 수 있습니다'
+                  : '이 기기에서 $_biometricLabel를 사용할 수 없습니다',
+              style: TextStyle(fontSize: 12, color: c.textMuted),
+            ),
+            value: state.lockEnabled &&
+                state.biometricUnlockEnabled &&
+                _biometricReady,
+            activeThumbColor: c.fasting,
+            onChanged: state.lockEnabled
+                ? (v) => _onBiometricChanged(v)
+                : null,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,

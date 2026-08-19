@@ -20,6 +20,7 @@ class StorageService {
   static const _themeKey = 'theme_mode'; // light | dark
   static const _lockEnabledKey = 'app_lock_enabled';
   static const _autoLockEnabledKey = 'app_auto_lock_enabled';
+  static const _biometricUnlockKey = 'app_biometric_unlock_enabled';
   static const _appPinKey = 'app_pin';
   static const _lastBackupAtKey = 'last_backup_at';
   static const _autoBackupEnabledKey = 'auto_backup_enabled';
@@ -216,6 +217,17 @@ class StorageService {
     await prefs.setBool(_autoLockEnabledKey, enabled);
   }
 
+  /// Face ID / 생체 인증으로 잠금 해제. 기본: true
+  Future<bool> loadBiometricUnlockEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_biometricUnlockKey) ?? true;
+  }
+
+  Future<void> saveBiometricUnlockEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_biometricUnlockKey, enabled);
+  }
+
   Future<String> loadAppPin() async {
     final prefs = await SharedPreferences.getInstance();
     final pin = prefs.getString(_appPinKey);
@@ -406,6 +418,8 @@ class StorageService {
               prefs.getInt(_readingDailyGoalKey) ?? 30,
           'lockEnabled': prefs.getBool(_lockEnabledKey) ?? true,
           'autoLockEnabled': prefs.getBool(_autoLockEnabledKey) ?? true,
+          'biometricUnlockEnabled':
+              prefs.getBool(_biometricUnlockKey) ?? true,
           'appPin': prefs.getString(_appPinKey) ?? defaultPin,
           'autoBackupEnabled': prefs.getBool(_autoBackupEnabledKey) ?? true,
           'autoBackupIntervalDays':
@@ -492,6 +506,12 @@ class StorageService {
       await prefs.setBool(
         _autoLockEnabledKey,
         settings['autoLockEnabled'] == true,
+      );
+    }
+    if (settings.containsKey('biometricUnlockEnabled')) {
+      await prefs.setBool(
+        _biometricUnlockKey,
+        settings['biometricUnlockEnabled'] == true,
       );
     }
     final pin = settings['appPin'] as String?;

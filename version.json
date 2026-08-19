@@ -1,7 +1,7 @@
 {
-  "version": "1.0.8",
-  "build": 13,
-  "message": "세션 완료 알림 보완 · 잠금 화면 개선",
+  "version": "1.0.9",
+  "build": 14,
+  "message": "Face ID로 잠금 해제 · 비밀번호는 예비 수단",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

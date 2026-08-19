@@ -31,6 +31,7 @@ class AppState extends ChangeNotifier {
   // 앱 잠금
   bool _lockEnabled = true;
   bool _autoLockEnabled = true;
+  bool _biometricUnlockEnabled = true;
   String _appPin = StorageService.defaultPin;
   bool _isLocked = true; // 잠금 사용 시 시작 시 잠금
 
@@ -48,6 +49,7 @@ class AppState extends ChangeNotifier {
   bool get isDarkMode => _themeMode == ThemeMode.dark;
   bool get lockEnabled => _lockEnabled;
   bool get autoLockEnabled => _autoLockEnabled;
+  bool get biometricUnlockEnabled => _biometricUnlockEnabled;
   bool get isLocked => _lockEnabled && _isLocked;
   int get pinLength => _appPin.length;
   DateTime? get lastBackupAt => _lastBackupAt;
@@ -646,6 +648,7 @@ class AppState extends ChangeNotifier {
     _themeMode = theme == 'dark' ? ThemeMode.dark : ThemeMode.light;
     _lockEnabled = await _storage.loadLockEnabled();
     _autoLockEnabled = await _storage.loadAutoLockEnabled();
+    _biometricUnlockEnabled = await _storage.loadBiometricUnlockEnabled();
     _appPin = await _storage.loadAppPin();
     _lastBackupAt = await _storage.loadLastBackupAt();
     _autoBackupEnabled = await _storage.loadAutoBackupEnabled();
@@ -711,6 +714,12 @@ class AppState extends ChangeNotifier {
     return false;
   }
 
+  /// Face ID 등 생체 인증 성공 후 잠금 해제
+  void unlockWithBiometric() {
+    _isLocked = false;
+    notifyListeners();
+  }
+
   Future<void> setLockEnabled(bool enabled) async {
     _lockEnabled = enabled;
     await _storage.saveLockEnabled(enabled);
@@ -726,6 +735,12 @@ class AppState extends ChangeNotifier {
   Future<void> setAutoLockEnabled(bool enabled) async {
     _autoLockEnabled = enabled;
     await _storage.saveAutoLockEnabled(enabled);
+    notifyListeners();
+  }
+
+  Future<void> setBiometricUnlockEnabled(bool enabled) async {
+    _biometricUnlockEnabled = enabled;
+    await _storage.saveBiometricUnlockEnabled(enabled);
     notifyListeners();
   }
 
