@@ -6,6 +6,7 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../models/session.dart';
+import '../utils/fasting_benefits.dart';
 import '../utils/format.dart';
 
 /// 목표 시각이 지났을 때 즉시 완료 알림을 보낼지.
@@ -42,7 +43,7 @@ class NotificationService {
 
   static const _channelId = 'session_milestones';
   static const _channelName = '세션 알림';
-  static const _channelDesc = '단식·금욕 진행 중 중간·완료 알림';
+  static const _channelDesc = '단식 단계 도달 · 금욕 목표 알림';
   static const _shownDonePrefix = 'session_notif_done_';
 
   // 알림 ID (타입별 고정 슬롯 — 세션당 최대 3개)
@@ -199,19 +200,26 @@ class NotificationService {
     }
   }
 
-  /// 목표가 있는 활성 세션에 대해 알림 예약.
-  /// 목표 시각이 이미 지났으면 완료 알림을 즉시 표시한다.
+  /// 활성 세션 알림 예약.
+  /// 단식은 12시간 이후 단계마다, 금욕은 목표 중간·완료.
+  /// 이미 지난 단식 단계는 다시 울리지 않는다.
   Future<void> scheduleSessionMilestones(TrackingSession session) async {
     if (!_enabled) return;
     if (!_ready) await init();
     if (!_ready) return;
 
-    final target = session.targetDuration;
-    if (target == null || target.inSeconds <= 0) {
+    if (session.status != SessionStatus.active) {
       await cancelForType(session.type);
       return;
     }
-    if (session.status != SessionStatus.active) {
+
+    if (session.type == SessionType.fasting) {
+      await _scheduleFastingMarks(session);
+      return;
+    }
+
+    final target = session.targetDuration;
+    if (target == null || target.inSeconds <= 0) {
       await cancelForType(session.type);
       return;
     }
@@ -266,6 +274,7 @@ class NotificationService {
 
     final now = DateTime.now();
     for (final session in sessions) {
+      if (session.type == SessionType.fasting) continue;
       if (session.status != SessionStatus.active) continue;
       if (!session.isTargetReached) continue;
       final target = session.targetDuration;
@@ -327,9 +336,32 @@ class NotificationService {
     }
   }
 
+  Future<void> _scheduleFastingMarks(TrackingSession session) async {
+    await cancelForType(SessionType.fasting);
+    if (session.status != SessionStatus.active) return;
+
+    final start = session.startTime;
+    for (final hours in fastingNotifyHours) {
+      final mark = fastingMilestoneAtHours(hours);
+      if (mark == null) continue;
+      await _scheduleIfFuture(
+        id: fastingNotifyId(hours),
+        when: start.add(mark.from),
+        title: '단식 · $hours시간 지났습니다',
+        body: mark.summary,
+        payload: 'fasting_mark_$hours',
+      );
+    }
+  }
+
   List<int> _idsFor(SessionType type) {
     if (type == SessionType.fasting) {
-      return [_idFastingHalf, _idFastingTen, _idFastingDone];
+      return [
+        _idFastingHalf,
+        _idFastingTen,
+        _idFastingDone,
+        for (final hours in fastingNotifyHours) fastingNotifyId(hours),
+      ];
     }
     return [_idAbstinenceHalf, _idAbstinenceTen, _idAbstinenceDone];
   }

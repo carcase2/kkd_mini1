@@ -21,6 +21,9 @@ Future<StartSessionResult?> showStartSessionSheet(
   required String title,
   required Color accent,
   required Duration? targetDuration,
+  String? goalLabel,
+  String? openEndedNote,
+  bool pickPast = false,
 }) {
   final c = AppPalette.of(context);
   return showModalBottomSheet<StartSessionResult>(
@@ -34,6 +37,9 @@ Future<StartSessionResult?> showStartSessionSheet(
       title: title,
       accent: accent,
       targetDuration: targetDuration,
+      goalLabel: goalLabel,
+      openEndedNote: openEndedNote,
+      pickPast: pickPast,
     ),
   );
 }
@@ -42,11 +48,17 @@ class _StartSessionSheet extends StatefulWidget {
   final String title;
   final Color accent;
   final Duration? targetDuration;
+  final String? goalLabel;
+  final String? openEndedNote;
+  final bool pickPast;
 
   const _StartSessionSheet({
     required this.title,
     required this.accent,
     required this.targetDuration,
+    this.goalLabel,
+    this.openEndedNote,
+    this.pickPast = false,
   });
 
   @override
@@ -55,12 +67,13 @@ class _StartSessionSheet extends StatefulWidget {
 
 class _StartSessionSheetState extends State<_StartSessionSheet> {
   /// true = 지금 시작, false = 직접 지정
-  bool _useNow = true;
+  late bool _useNow;
   late DateTime _customStart;
 
   @override
   void initState() {
     super.initState();
+    _useNow = !widget.pickPast;
     // 기본 제안: 1시간 전 (이미 시작한 단식을 기록하는 경우가 많음)
     final now = DateTime.now();
     _customStart = DateTime(now.year, now.month, now.day, now.hour, now.minute)
@@ -190,7 +203,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
               ),
               const SizedBox(height: 6),
               Text(
-                '목표 · $targetLabel',
+                widget.goalLabel ?? '목표 · $targetLabel',
                 style: TextStyle(
                   color: widget.accent,
                   fontWeight: FontWeight.w700,
@@ -326,11 +339,12 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                     ] else ...[
                       const SizedBox(height: 8),
                       Text(
-                        '자유 모드 · 완료 예정 시각 없음',
+                        widget.openEndedNote ?? '자유 모드 · 완료 예정 시각 없음',
                         style: TextStyle(
                           fontSize: 12,
                           color: c.textMuted,
                           fontWeight: FontWeight.w600,
+                          height: 1.35,
                         ),
                       ),
                     ],

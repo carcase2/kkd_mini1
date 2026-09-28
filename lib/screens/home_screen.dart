@@ -10,6 +10,7 @@ import '../services/supabase_sync_service.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_version.dart';
+import '../utils/fasting_benefits.dart';
 import '../utils/format.dart';
 import '../widgets/cloud_refresh.dart';
 import '../widgets/timer_ring.dart';
@@ -285,9 +286,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     soft: c.fastingSoft,
                     colors: c,
                     elapsed: fasting.elapsed,
-                    target: fasting.targetDuration,
+                    target: null,
                     startTime: fasting.startTime,
-                    showExpectedEnd: true,
+                    caption: fastingProgressCaption(fasting.elapsed),
                     onTap: () => _goTo(1),
                   ),
                 ),
@@ -364,8 +365,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       status: fasting != null
                           ? '${formatDuration(fasting.elapsed, short: true)} 진행'
                           : '대기 중',
-                      detail:
-                          '성공 ${state.fastingSuccess} · 실패 ${state.fastingFailed} · 총 ${state.fastingTotal}회',
+                      detail: fasting != null
+                          ? fastingProgressCaption(fasting.elapsed)
+                          : '총 ${state.fastingTotal}회 · 최장 ${state.fastingTotal == 0 ? '-' : formatDurationTiny(state.fastingLongest)}',
                       onTap: () => _goTo(1),
                     ),
                     const SizedBox(height: 8),
@@ -415,6 +417,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
+                      title: '습관',
+                      icon: Icons.checklist_rounded,
+                      color: c.habit,
+                      soft: c.habitSoft,
+                      colors: c,
+                      status: state.habitHomeStatus,
+                      detail: state.habitHomeDetail,
+                      onTap: () => _goTo(5),
+                    ),
+                    const SizedBox(height: 8),
+                    _QuickRow(
                       title: '약',
                       icon: Icons.medication_rounded,
                       color: c.warning,
@@ -430,7 +443,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               state.activeMedicationSets.isEmpty
                           ? '약·세트로 복용 시간을 기록하세요'
                           : _medicationHomeDetail(state),
-                      onTap: () => _goTo(5),
+                      onTap: () => _goTo(6),
                     ),
                     const SizedBox(height: 8),
                     _QuickRow(
@@ -439,11 +452,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: c.success,
                       soft: c.successSoft,
                       colors: c,
-                      status:
-                          '단식 성공 ${formatPercent(state.fastingSuccessRate)}',
+                      status: state.fastingTotal == 0
+                          ? '단식 기록 없음'
+                          : '단식 최장 ${formatDurationTiny(state.fastingLongest)}',
                       detail:
                           '금욕 성공 ${formatPercent(state.abstinenceSuccessRate)}',
-                      onTap: () => _goTo(6),
+                      onTap: () => _goTo(7),
                     ),
                   ],
                 ),
@@ -1350,7 +1364,7 @@ class _LockSettingsSheetState extends State<_LockSettingsSheet> {
               ),
             ),
             subtitle: Text(
-              '절반 지남 · 10% 남음 · 목표 완료 시 알림',
+              '단식은 지난 시간마다, 금욕은 목표 중간에 알림',
               style: TextStyle(fontSize: 12, color: c.textMuted),
             ),
             value: state.sessionNotificationsEnabled,
@@ -1702,6 +1716,7 @@ class _ActiveCard extends StatelessWidget {
   final Duration? target;
   final DateTime? startTime;
   final bool showExpectedEnd;
+  final String? caption;
   final VoidCallback onTap;
 
   const _ActiveCard({
@@ -1713,6 +1728,7 @@ class _ActiveCard extends StatelessWidget {
     required this.target,
     this.startTime,
     this.showExpectedEnd = false,
+    this.caption,
     required this.onTap,
   });
 
@@ -1793,16 +1809,17 @@ class _ActiveCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     _CardLine(
-                      text: target != null
-                          ? '목표 ${formatTargetDuration(target)}${pct != null ? ' · $pct%' : ''}'
-                          : '자유 모드',
+                      text: caption ??
+                          (target != null
+                              ? '목표 ${formatTargetDuration(target)}${pct != null ? ' · $pct%' : ''}'
+                              : '자유 모드'),
                       style: TextStyle(
                         fontSize: 10,
                         color: colors.textSecondary,
                         height: 1.1,
                       ),
                     ),
-                    if (remaining != null) ...[
+                    if (caption == null && remaining != null) ...[
                       const SizedBox(height: 2),
                       _CardLine(
                         text: remaining,
@@ -1814,7 +1831,7 @@ class _ActiveCard extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (expectedEnd != null && !reached) ...[
+                    if (caption == null && expectedEnd != null && !reached) ...[
                       const SizedBox(height: 2),
                       _CardLine(
                         text: expectedEnd,

@@ -236,6 +236,8 @@ class SupabaseSyncService {
         emptyList(map['medicationSets']) &&
         emptyList(map['medicationSetDoses']) &&
         emptyList(map['books']) &&
-        emptyList(map['readingLogs']);
+        emptyList(map['readingLogs']) &&
+        emptyList(map['habits']) &&
+        emptyList(map['habitChecks']);
   }
 }

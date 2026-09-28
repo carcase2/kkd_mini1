@@ -64,11 +64,17 @@ class StatsScreen extends StatelessWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _SuccessFailChart(
-                  success: state.fastingSuccess,
-                  failed: state.fastingFailed,
+                child: _FastingMarks(
+                  total: state.fastingTotal,
+                  counts: {
+                    12: state.fastingReachedHours(12),
+                    16: state.fastingReachedHours(16),
+                    24: state.fastingReachedHours(24),
+                    36: state.fastingReachedHours(36),
+                    48: state.fastingReachedHours(48),
+                    72: state.fastingReachedHours(72),
+                  },
                   color: AppColors.fasting,
-                  emptyLabel: '단식 기록이 없어요',
                 ),
               ),
             ),
@@ -79,18 +85,20 @@ class StatsScreen extends StatelessWidget {
                 child: StatCardGrid(
                   cards: [
                     StatCard(
-                      label: '총 시도',
+                      label: '총 횟수',
                       value: '${state.fastingTotal}회',
                       icon: Icons.flag_outlined,
                       color: AppColors.fasting,
                       softColor: AppColors.fastingSoft,
                     ),
                     StatCard(
-                      label: '성공률',
-                      value: formatPercent(state.fastingSuccessRate),
-                      icon: Icons.trending_up_rounded,
-                      color: AppColors.success,
-                      softColor: AppColors.successSoft,
+                      label: '평균',
+                      value: state.fastingTotal == 0
+                          ? '-'
+                          : formatDurationTiny(state.fastingAverage),
+                      icon: Icons.timelapse_rounded,
+                      color: AppColors.fasting,
+                      softColor: AppColors.fastingSoft,
                     ),
                     StatCard(
                       label: '총 단식 시간',
@@ -420,6 +428,115 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+class _FastingMarks extends StatelessWidget {
+  final int total;
+  final Map<int, int> counts;
+  final Color color;
+
+  const _FastingMarks({
+    required this.total,
+    required this.counts,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hours = counts.keys.toList()..sort();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: total == 0
+          ? SizedBox(
+              height: 72,
+              child: Center(
+                child: Text(
+                  '단식 기록이 없어요',
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '도달한 시간',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+                const SizedBox(height: 12),
+                for (final hour in hours) ...[
+                  _MarkRow(
+                    label: '$hour시간+',
+                    count: counts[hour] ?? 0,
+                    total: total,
+                    color: color,
+                  ),
+                  if (hour != hours.last) const SizedBox(height: 10),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+class _MarkRow extends StatelessWidget {
+  final String label;
+  final int count;
+  final int total;
+  final Color color;
+
+  const _MarkRow({
+    required this.label,
+    required this.count,
+    required this.total,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fraction = total == 0 ? 0.0 : count / total;
+    return Row(
+      children: [
+        SizedBox(
+          width: 72,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 8,
+              backgroundColor: color.withValues(alpha: 0.12),
+              color: color,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 36,
+          child: Text(
+            '$count회',
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SuccessFailChart extends StatelessWidget {
   final int success;
   final int failed;
@@ -657,14 +774,12 @@ class _RecentBars extends StatelessWidget {
                 borderData: FlBorderData(show: false),
                 barGroups: List.generate(sessions.length, (i) {
                   final hours = sessions[i].elapsed.inMinutes / 60.0;
-                  final ok =
-                      sessions[i].status == SessionStatus.completed;
                   return BarChartGroupData(
                     x: i,
                     barRods: [
                       BarChartRodData(
                         toY: hours,
-                        color: ok ? color : AppColors.danger.withValues(alpha: 0.7),
+                        color: color,
                         width: 14,
                         borderRadius: BorderRadius.circular(6),
                       ),

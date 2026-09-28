@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../models/book.dart';
+import '../models/habit.dart';
 import '../models/medication.dart';
 import '../models/session.dart';
 import '../services/backup_service.dart';
@@ -23,6 +24,8 @@ class AppState extends ChangeNotifier {
   List<MedicationSetDose> _medicationSetDoses = [];
   List<Book> _books = [];
   List<ReadingLog> _readingLogs = [];
+  List<Habit> _habits = [];
+  List<HabitCheck> _habitChecks = [];
   String? _selectedBookId;
   int _readingDailyGoalMinutes = 30;
   bool _loaded = false;
@@ -59,6 +62,7 @@ class AppState extends ChangeNotifier {
 
   Timer? _autoBackupDebounce;
   Timer? _cloudSyncDebounce;
+  DateTime? _lastTickDay;
   final bool _cloudSyncEnabled = true;
   bool get cloudSyncEnabled => _cloudSyncEnabled;
   bool get cloudSyncReady => _cloud.isReady;
@@ -77,6 +81,8 @@ class AppState extends ChangeNotifier {
       List.unmodifiable(_medicationSetDoses);
   List<Book> get books => List.unmodifiable(_books);
   List<ReadingLog> get readingLogs => List.unmodifiable(_readingLogs);
+  List<Habit> get habits => List.unmodifiable(_habits);
+  List<HabitCheck> get habitChecks => List.unmodifiable(_habitChecks);
   String? get selectedBookId => _selectedBookId;
   int get readingDailyGoalMinutes => _readingDailyGoalMinutes;
 
@@ -138,6 +144,18 @@ class AppState extends ChangeNotifier {
     return fastingHistory
         .map((s) => s.elapsed)
         .reduce((a, b) => a > b ? a : b);
+  }
+
+  Duration get fastingAverage {
+    if (fastingHistory.isEmpty) return Duration.zero;
+    return Duration(
+      seconds: fastingTotalTime.inSeconds ~/ fastingHistory.length,
+    );
+  }
+
+  int fastingReachedHours(int hours) {
+    final mark = Duration(hours: hours);
+    return fastingHistory.where((s) => s.elapsed >= mark).length;
   }
 
   // ── Stats: Abstinence ────────────────────────────────────────
@@ -579,6 +597,69 @@ class AppState extends ChangeNotifier {
   bool get readingTodayGoalMet =>
       readingToday.inMinutes >= _readingDailyGoalMinutes;
 
+  // ── Habits ───────────────────────────────────────────────────
+
+  List<Habit> get sortedHabits {
+    final list = List<Habit>.from(_habits);
+    list.sort((a, b) {
+      if (a.active != b.active) return a.active ? -1 : 1;
+      return a.createdAt.compareTo(b.createdAt);
+    });
+    return list;
+  }
+
+  List<HabitCheck> checksForHabit(String habitId) {
+    final list = _habitChecks.where((c) => c.habitId == habitId).toList();
+    list.sort((a, b) => b.checkedAt.compareTo(a.checkedAt));
+    return list;
+  }
+
+  int habitChecksInCurrentWindow(Habit habit, [DateTime? now]) {
+    return countChecksInWindow(habit, _habitChecks, now ?? DateTime.now());
+  }
+
+  HabitWindow currentHabitWindow(Habit habit, [DateTime? now]) {
+    return habitWindow(habit, now ?? DateTime.now());
+  }
+
+  int get activeHabitCount => _habits.where((h) => h.active).length;
+
+  int get habitOpenCount {
+    final now = DateTime.now();
+    return _habits
+        .where(
+          (h) =>
+              h.active &&
+              habitChecksInCurrentWindow(h, now) < h.timesPerPeriod,
+        )
+        .length;
+  }
+
+  String get habitHomeStatus {
+    if (_habits.isEmpty) return '등록 없음';
+    if (activeHabitCount == 0) return '쉬는 중';
+    final open = habitOpenCount;
+    if (open == 0) return '이번 주기 모두 완료';
+    return '남은 항목 $open개';
+  }
+
+  String get habitHomeDetail {
+    if (_habits.isEmpty) return '주기마다 횟수를 체크해요';
+    final now = DateTime.now();
+    final active = _habits.where((h) => h.active).toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    if (active.isEmpty) return '비활성 ${_habits.length}개';
+    final open = active
+        .where(
+          (h) => habitChecksInCurrentWindow(h, now) < h.timesPerPeriod,
+        )
+        .toList();
+    if (open.isEmpty) return '등록 ${active.length}개 · 이번 주기 완료';
+    final habit = open.first;
+    final count = habitChecksInCurrentWindow(habit, now);
+    return '${habit.name} · $count/${habit.timesPerPeriod}';
+  }
+
   // ── Load / Save ──────────────────────────────────────────────
 
   Future<void> load() async {
@@ -595,6 +676,7 @@ class AppState extends ChangeNotifier {
     }
 
     await syncCloud();
+    await _ensureStarterHabits();
   }
 
   /// 로그인 직후·앱 시작 시 클라우드와 맞춤
@@ -638,6 +720,8 @@ class AppState extends ChangeNotifier {
     _medicationSetDoses = await _storage.loadMedicationSetDoses();
     _books = await _storage.loadBooks();
     _readingLogs = await _storage.loadReadingLogs();
+    _habits = await _storage.loadHabits();
+    _habitChecks = await _storage.loadHabitChecks();
     _selectedBookId = await _storage.loadSelectedBookId();
     _readingDailyGoalMinutes = await _storage.loadReadingDailyGoalMinutes();
     if (_selectedBookId != null &&
@@ -905,6 +989,122 @@ class AppState extends ChangeNotifier {
     await _markDataChangedAndQueue();
   }
 
+  Future<void> _persistHabits() async {
+    await _storage.saveHabits(_habits);
+    await _markDataChangedAndQueue();
+  }
+
+  Future<void> _persistHabitChecks() async {
+    await _storage.saveHabitChecks(_habitChecks);
+    await _markDataChangedAndQueue();
+  }
+
+  /// 이 기기에 습관 목록이 한 번도 저장된 적 없을 때만 예시 2개를 넣는다.
+  /// 클라우드 동기화 뒤에 호출해서, 다른 기기 기록을 예시로 덮지 않는다.
+  Future<void> _ensureStarterHabits() async {
+    if (await _storage.hasStoredHabits()) return;
+    if (_habits.isNotEmpty) return;
+    _habits = starterHabits(DateTime.now());
+    await _persistHabits();
+    notifyListeners();
+  }
+
+  Future<void> addHabit({
+    required String name,
+    required int timesPerPeriod,
+    required int every,
+    required HabitPeriodUnit unit,
+    String? note,
+  }) async {
+    final trimmed = name.trim();
+    final times = timesPerPeriod.clamp(1, 99);
+    final span = every.clamp(1, maxEveryFor(unit));
+    if (trimmed.isEmpty) return;
+
+    final now = DateTime.now();
+    final habit = Habit(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      name: trimmed,
+      timesPerPeriod: times,
+      every: span,
+      unit: unit,
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+      createdAt: now,
+      anchor: dateOnly(now),
+    );
+    _habits.add(habit);
+    await _persistHabits();
+    notifyListeners();
+  }
+
+  Future<void> updateHabit(Habit updated) async {
+    final idx = _habits.indexWhere((h) => h.id == updated.id);
+    if (idx < 0) return;
+    final trimmed = updated.name.trim();
+    if (trimmed.isEmpty) return;
+    final prev = _habits[idx];
+    final unit = updated.unit;
+    final every = updated.every.clamp(1, maxEveryFor(unit));
+    final times = updated.timesPerPeriod.clamp(1, 99);
+    // 주기 길이가 바뀌면 이번 주기를 오늘부터 다시 센다.
+    final anchor = (prev.unit != unit || prev.every != every)
+        ? dateOnly(DateTime.now())
+        : prev.anchor;
+    final note = updated.note?.trim();
+    _habits[idx] = updated.copyWith(
+      name: trimmed,
+      timesPerPeriod: times,
+      every: every,
+      unit: unit,
+      anchor: anchor,
+      note: note == null || note.isEmpty ? null : note,
+      clearNote: note == null || note.isEmpty,
+    );
+    await _persistHabits();
+    notifyListeners();
+  }
+
+  Future<void> setHabitActive(String id, bool active) async {
+    final idx = _habits.indexWhere((h) => h.id == id);
+    if (idx < 0) return;
+    _habits[idx] = _habits[idx].copyWith(active: active);
+    await _persistHabits();
+    notifyListeners();
+  }
+
+  Future<void> deleteHabit(String id) async {
+    _habits.removeWhere((h) => h.id == id);
+    _habitChecks.removeWhere((c) => c.habitId == id);
+    await _persistHabits();
+    await _persistHabitChecks();
+    notifyListeners();
+  }
+
+  Future<void> logHabitCheck({
+    required String habitId,
+    DateTime? when,
+    String? note,
+  }) async {
+    if (!_habits.any((h) => h.id == habitId)) return;
+    final requested = when ?? DateTime.now();
+    final safe = requested.isAfter(DateTime.now()) ? DateTime.now() : requested;
+    final check = HabitCheck(
+      id: '${DateTime.now().microsecondsSinceEpoch}_$habitId',
+      habitId: habitId,
+      checkedAt: safe,
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+    );
+    _habitChecks.add(check);
+    await _persistHabitChecks();
+    notifyListeners();
+  }
+
+  Future<void> deleteHabitCheck(String id) async {
+    _habitChecks.removeWhere((c) => c.id == id);
+    await _persistHabitChecks();
+    notifyListeners();
+  }
+
   // ── Session actions ──────────────────────────────────────────
 
   Future<void> startSession({
@@ -942,7 +1142,10 @@ class AppState extends ChangeNotifier {
     );
     _sessions.add(session);
     await _persistSessions();
-    if (_sessionNotificationsEnabled && targetDuration != null) {
+    final notify = _sessionNotificationsEnabled &&
+        (type == SessionType.fasting ||
+            (targetDuration != null && targetDuration.inSeconds > 0));
+    if (notify) {
       await NotificationService.instance.requestPermission(
         requestExactAlarm: true,
       );
@@ -981,7 +1184,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 목표 달성·자유 모드 → 성공, 미달 → 실패. 목표 시간 후에도 계속하다 종료 가능.
+  /// 단식은 경과 시간으로 기록. 금욕은 목표 달성·자유 모드면 성공, 미달이면 실패.
   Future<SessionStatus?> endSession(String id) async {
     final idx = _sessions.indexWhere((s) => s.id == id);
     if (idx < 0) return null;
@@ -1489,14 +1692,26 @@ class AppState extends ChangeNotifier {
 
   bool _reachNotifyBusy = false;
 
+  @override
+  void dispose() {
+    _autoBackupDebounce?.cancel();
+    _cloudSyncDebounce?.cancel();
+    super.dispose();
+  }
+
   /// UI 갱신용 틱 (활성 타이머 · 체크 경과 · 약 카운트다운 · 독서)
   void tick() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dayChanged = _lastTickDay != null && _lastTickDay != today;
+    _lastTickDay = today;
     if (activeFasting != null ||
         activeAbstinence != null ||
         activeReading != null ||
         lastMasturbation != null ||
         _medications.any((m) => m.active && lastDose(m.id) != null) ||
-        _medicationSets.any((s) => s.active && lastSetDose(s.id) != null)) {
+        _medicationSets.any((s) => s.active && lastSetDose(s.id) != null) ||
+        (dayChanged && _habits.any((h) => h.active))) {
       notifyListeners();
     }
     unawaited(_maybeNotifyReachedTargets());
@@ -1505,7 +1720,6 @@ class AppState extends ChangeNotifier {
   Future<void> _maybeNotifyReachedTargets() async {
     if (!_sessionNotificationsEnabled || _reachNotifyBusy) return;
     final reached = <TrackingSession>[
-      if (activeFasting?.isTargetReached == true) activeFasting!,
       if (activeAbstinence?.isTargetReached == true) activeAbstinence!,
     ];
     if (reached.isEmpty) return;

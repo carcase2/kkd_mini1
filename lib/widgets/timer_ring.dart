@@ -15,6 +15,9 @@ class TimerRing extends StatelessWidget {
   /// true면 링만 / 짧은 시간만 표시 (홈 카드 등 작은 영역)
   final bool compact;
 
+  /// 있으면 목표·자유 모드 문구 대신 이 줄을 보여 준다.
+  final String? footer;
+
   const TimerRing({
     super.key,
     required this.elapsed,
@@ -23,6 +26,7 @@ class TimerRing extends StatelessWidget {
     this.size = 220,
     this.label,
     this.compact = false,
+    this.footer,
   });
 
   @override
@@ -89,7 +93,18 @@ class TimerRing extends StatelessWidget {
                     style: timeStyle,
                     maxLines: 1,
                   ),
-                  if (!isSmall && target != null) ...[
+                  if (!isSmall && footer != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      footer!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ] else if (!isSmall && target != null) ...[
                     const SizedBox(height: 4),
                     Text(
                       '목표 ${formatTargetDuration(target)}',

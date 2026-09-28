@@ -45,9 +45,12 @@ class TrackingSession {
     return elapsed >= targetDuration!;
   }
 
-  /// 종료 시 성공/실패. 자유 모드·목표 달성 = 성공, 미달 = 실패.
+  /// 종료 시 상태. 단식은 시간 기록이므로 항상 완료.
+  /// 금욕은 자유 모드·목표 달성 = 성공, 미달 = 실패.
   SessionStatus get endStatus {
-    if (isOpenEnded || isTargetReached) return SessionStatus.completed;
+    if (type == SessionType.fasting || isOpenEnded || isTargetReached) {
+      return SessionStatus.completed;
+    }
     return SessionStatus.failed;
   }
 
@@ -137,18 +140,6 @@ class DurationPreset {
     required this.description,
   });
 }
-
-const fastingPresets = [
-  DurationPreset(label: '12시간', duration: Duration(hours: 12), description: '입문 단식'),
-  DurationPreset(label: '16:8', duration: Duration(hours: 16), description: '가장 인기 있는 단식'),
-  DurationPreset(label: '18시간', duration: Duration(hours: 18), description: '중급 단식'),
-  DurationPreset(label: '20시간', duration: Duration(hours: 20), description: 'OMAD 준비'),
-  DurationPreset(label: '24시간', duration: Duration(hours: 24), description: '하루 단식'),
-  DurationPreset(label: '36시간', duration: Duration(hours: 36), description: '심화 단식'),
-  DurationPreset(label: '48시간', duration: Duration(hours: 48), description: '2일 단식'),
-  DurationPreset(label: '72시간', duration: Duration(hours: 72), description: '3일 단식'),
-  DurationPreset(label: '자유', duration: null, description: '목표 없이 시작'),
-];
 
 const abstinencePresets = [
   DurationPreset(label: '1일', duration: Duration(days: 1), description: '하루 도전'),

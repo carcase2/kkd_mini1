@@ -10,6 +10,7 @@ import '../utils/abstinence_benefits.dart';
 import '../utils/fasting_benefits.dart';
 import '../utils/format.dart';
 import '../widgets/cloud_refresh.dart';
+import '../widgets/fasting_stage_card.dart';
 import '../widgets/history_tile.dart';
 import '../widgets/preset_picker.dart';
 import '../widgets/start_session_sheet.dart';
@@ -26,14 +27,14 @@ class TrackingScreen extends StatelessWidget {
   bool get isFasting => type == SessionType.fasting;
 
   String get title => isFasting ? '단식' : '금욕';
-  String get subtitle =>
-      isFasting ? '간헐적 단식 · 물단식 타이머' : '야동 · 자극 콘텐츠 끊기';
+  String get subtitle => isFasting
+      ? '시작하면 시간이 쌓이고, 단계마다 장점이 나와요'
+      : '야동 · 자극 콘텐츠 끊기';
   Color get accent => isFasting ? AppColors.fasting : AppColors.abstinence;
   Color get soft => isFasting ? AppColors.fastingSoft : AppColors.abstinenceSoft;
   IconData get icon =>
       isFasting ? Icons.restaurant_outlined : Icons.shield_outlined;
-  List<DurationPreset> get presets =>
-      isFasting ? fastingPresets : abstinencePresets;
+  List<DurationPreset> get presets => abstinencePresets;
 
   @override
   Widget build(BuildContext context) {
@@ -75,14 +76,46 @@ class TrackingScreen extends StatelessWidget {
                 total: total,
                 rate: rate,
                 longest: longest,
+                totalTime: isFasting ? state.fastingTotalTime : Duration.zero,
+                average: isFasting ? state.fastingAverage : Duration.zero,
                 history: history,
                 allowDays: !isFasting,
+                milestoneMode: isFasting,
                 onStart: (duration) => _start(context, duration),
+                onStartNow: isFasting ? () => _startNow(context) : null,
+                onStartPast: isFasting ? () => _startPast(context) : null,
                 onDeleteHistory: (id) =>
                     context.read<AppState>().deleteSession(id),
               ),
       ),
     );
+  }
+
+  Future<void> _startNow(BuildContext context) async {
+    HapticFeedback.mediumImpact();
+    await context.read<AppState>().startSession(
+          type: type,
+          startTime: DateTime.now(),
+        );
+  }
+
+  Future<void> _startPast(BuildContext context) async {
+    final result = await showStartSessionSheet(
+      context,
+      title: title,
+      accent: accent,
+      targetDuration: null,
+      goalLabel: '지난 시각부터 이어서',
+      openEndedNote: '고른 시각부터 시간이 쌓이고, 12·24·48시간 등 그 구간의 장점이 나와요.',
+      pickPast: true,
+    );
+    if (result == null || !context.mounted) return;
+
+    HapticFeedback.mediumImpact();
+    await context.read<AppState>().startSession(
+          type: type,
+          startTime: result.startTime,
+        );
   }
 
   Future<void> _start(BuildContext context, Duration? duration) async {
@@ -106,6 +139,11 @@ class TrackingScreen extends StatelessWidget {
     BuildContext context,
     TrackingSession session,
   ) async {
+    if (session.type == SessionType.fasting) {
+      await _confirmEndFasting(context, session);
+      return;
+    }
+
     final willSucceed = session.endStatus == SessionStatus.completed;
     final pct = session.targetDuration != null &&
             session.targetDuration!.inSeconds > 0
@@ -157,6 +195,40 @@ class TrackingScreen extends StatelessWidget {
             success ? '$title 성공! 잘했어요 🎉' : '$title 실패 기록됨. 다시 도전해요 💪',
           ),
         ),
+      );
+    }
+  }
+
+  Future<void> _confirmEndFasting(
+    BuildContext context,
+    TrackingSession session,
+  ) async {
+    final elapsedLabel = formatDuration(session.elapsed, short: true);
+    final stage = fastingHistoryStage(session.elapsed);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('단식을 마칠까요?'),
+        content: Text('$elapsedLabel 단식했습니다.\n$stage\n이 시간으로 기록합니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('계속하기'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: accent),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('기록하기'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      HapticFeedback.mediumImpact();
+      final status = await context.read<AppState>().endSession(session.id);
+      if (!context.mounted || status == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$elapsedLabel 단식을 기록했어요')),
       );
     }
   }
@@ -215,11 +287,20 @@ class _ActiveView extends StatelessWidget {
             session.targetDuration!.inSeconds > 0
         ? (session.progress * 100).toStringAsFixed(0)
         : null;
-    final endColor =
-        reached || session.isOpenEnded ? AppColors.success : AppColors.danger;
-    final endSoft = reached || session.isOpenEnded
-        ? AppColors.successSoft
-        : AppColors.dangerSoft;
+    final isFasting = session.type == SessionType.fasting;
+    final fastingSnap =
+        isFasting ? fastingBenefitsFor(session.elapsed) : null;
+    final endColor = isFasting
+        ? accent
+        : (reached || session.isOpenEnded
+            ? AppColors.success
+            : AppColors.danger);
+    final endSoft = isFasting
+        ? soft
+        : (reached || session.isOpenEnded
+            ? AppColors.successSoft
+            : AppColors.dangerSoft);
+    final endLabel = isFasting ? '단식 마치기' : '종료';
 
     return Column(
       children: [
@@ -251,7 +332,7 @@ class _ActiveView extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                if (reached && session.targetDuration != null)
+                if (!isFasting && reached && session.targetDuration != null)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
@@ -289,13 +370,18 @@ class _ActiveView extends StatelessWidget {
                 const SizedBox(height: 24),
                 TimerRing(
                   elapsed: session.elapsed,
-                  target: session.targetDuration,
+                  target: isFasting
+                      ? fastingSnap!.next?.from
+                      : session.targetDuration,
+                  footer: fastingSnap == null
+                      ? null
+                      : fastingRingFooter(fastingSnap),
                   color: accent,
-                  size: 260,
+                  size: isFasting ? 220 : 260,
                   label: title,
                 ),
                 const SizedBox(height: 20),
-                if (remaining != null && !reached) ...[
+                if (!isFasting && remaining != null && !reached) ...[
                   Text(
                     '남은 시간 ${formatDuration(remaining, short: true)}',
                     style: TextStyle(
@@ -324,7 +410,7 @@ class _ActiveView extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (reached && pct != null)
+                if (!isFasting && reached && pct != null)
                   Text(
                     '$pct% 완료 · 목표 초과 진행 중',
                     style: TextStyle(
@@ -342,7 +428,8 @@ class _ActiveView extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (reached &&
+                if (!isFasting &&
+                    reached &&
                     session.targetDuration != null &&
                     session.startTime
                         .add(session.targetDuration!)
@@ -366,25 +453,12 @@ class _ActiveView extends StatelessWidget {
                       ),
                     ),
                   ),
-                if (session.type == SessionType.fasting) ...[
-                  const SizedBox(height: 24),
-                  Builder(
-                    builder: (context) {
-                      final snap = fastingBenefitsFor(session.elapsed);
-                      return _MilestoneBenefitsCard(
-                        headerTitle: '지금 몸의 변화',
-                        elapsed: session.elapsed,
-                        currentTitle: snap.current.title,
-                        currentSummary: snap.current.summary,
-                        currentBenefits: snap.current.benefits,
-                        nextTitle: snap.next?.title,
-                        nextSummary: snap.next?.summary,
-                        nextBenefits: snap.next?.benefits,
-                        untilNext: snap.untilNext,
-                        accent: accent,
-                        soft: soft,
-                      );
-                    },
+                if (isFasting) ...[
+                  const SizedBox(height: 20),
+                  FastingStageCard(
+                    elapsed: session.elapsed,
+                    accent: accent,
+                    soft: soft,
                   ),
                 ],
                 if (session.type == SessionType.abstinence) ...[
@@ -449,7 +523,7 @@ class _ActiveView extends StatelessWidget {
         ),
         StickyBottomBar(
           child: StickyActionButton(
-            label: '종료',
+            label: endLabel,
             icon: Icons.stop_rounded,
             color: endColor,
             soft: endSoft,
@@ -680,9 +754,14 @@ class _IdleView extends StatelessWidget {
   final int total;
   final double rate;
   final Duration longest;
+  final Duration totalTime;
+  final Duration average;
   final List<TrackingSession> history;
   final bool allowDays;
+  final bool milestoneMode;
   final void Function(Duration? duration) onStart;
+  final VoidCallback? onStartNow;
+  final VoidCallback? onStartPast;
   final void Function(String id) onDeleteHistory;
 
   const _IdleView({
@@ -697,9 +776,14 @@ class _IdleView extends StatelessWidget {
     required this.total,
     required this.rate,
     required this.longest,
+    this.totalTime = Duration.zero,
+    this.average = Duration.zero,
     required this.history,
     required this.allowDays,
+    this.milestoneMode = false,
     required this.onStart,
+    this.onStartNow,
+    this.onStartPast,
     required this.onDeleteHistory,
   });
 
@@ -755,48 +839,82 @@ class _IdleView extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
             child: StatsRow(
-              chips: [
-                QuickStatChip(
-                  label: '성공',
-                  value: '$success',
-                  color: AppColors.success,
-                ),
-                QuickStatChip(
-                  label: '실패',
-                  value: '$failed',
-                  color: AppColors.danger,
-                ),
-                QuickStatChip(
-                  label: '성공률',
-                  value: formatPercent(rate),
-                  color: accent,
-                ),
-                QuickStatChip(
-                  label: '최장',
-                  value: total == 0 ? '-' : formatDurationTiny(longest),
-                  color: AppColors.warning,
-                ),
-              ],
+              chips: milestoneMode
+                  ? [
+                      QuickStatChip(
+                        label: '횟수',
+                        value: '$total',
+                        color: accent,
+                      ),
+                      QuickStatChip(
+                        label: '누적',
+                        value: total == 0
+                            ? '-'
+                            : formatDurationTiny(totalTime),
+                        color: AppColors.fasting,
+                      ),
+                      QuickStatChip(
+                        label: '최장',
+                        value: total == 0
+                            ? '-'
+                            : formatDurationTiny(longest),
+                        color: AppColors.warning,
+                      ),
+                      QuickStatChip(
+                        label: '평균',
+                        value: total == 0 ? '-' : formatDurationTiny(average),
+                        color: AppColors.success,
+                      ),
+                    ]
+                  : [
+                      QuickStatChip(
+                        label: '성공',
+                        value: '$success',
+                        color: AppColors.success,
+                      ),
+                      QuickStatChip(
+                        label: '실패',
+                        value: '$failed',
+                        color: AppColors.danger,
+                      ),
+                      QuickStatChip(
+                        label: '성공률',
+                        value: formatPercent(rate),
+                        color: accent,
+                      ),
+                      QuickStatChip(
+                        label: '최장',
+                        value: total == 0 ? '-' : formatDurationTiny(longest),
+                        color: AppColors.warning,
+                      ),
+                    ],
             ),
           ),
         ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: PresetPicker(
-              presets: presets,
-              accent: accent,
-              onSelected: onStart,
-              onCustom: () async {
-                final d = await showCustomDurationDialog(
-                  context,
-                  title: '$title 커스텀 시간',
-                  accent: accent,
-                  allowDays: allowDays,
-                );
-                if (d != null) onStart(d);
-              },
-            ),
+            child: milestoneMode
+                ? FastingStartCard(
+                    accent: accent,
+                    soft: soft,
+                    onStartNow: onStartNow ?? () {},
+                    onStartPast: onStartPast ?? () {},
+                  )
+                : PresetPicker(
+                    presets: presets,
+                    accent: accent,
+                    onSelected: onStart,
+                    onCustom: () async {
+                      final d = await showCustomDurationDialog(
+                        context,
+                        title: '$title 커스텀 시간',
+                        accent: accent,
+                        allowDays: allowDays,
+                      );
+                      if (d != null) onStart(d);
+                    },
+                  ),
           ),
         ),
         SliverToBoxAdapter(
@@ -829,7 +947,9 @@ class _IdleView extends StatelessWidget {
               padding: EdgeInsets.all(40),
               child: Center(
                 child: Text(
-                  '아직 기록이 없어요.\n위에서 목표를 골라 시작해보세요!',
+                  milestoneMode
+                      ? '아직 기록이 없어요.\n단식을 시작하면 여기에 시간이 쌓여요.'
+                      : '아직 기록이 없어요.\n위에서 목표를 골라 시작해보세요!',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textMuted, height: 1.5),
                 ),

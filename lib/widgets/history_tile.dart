@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../models/session.dart';
 import '../theme/app_theme.dart';
+import '../utils/fasting_benefits.dart';
 import '../utils/format.dart';
 
 class SessionHistoryTile extends StatelessWidget {
@@ -19,6 +20,10 @@ class SessionHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (session.type == SessionType.fasting) {
+      return _fastingTile();
+    }
+
     final isSuccess = session.status == SessionStatus.completed;
     final statusColor = isSuccess ? AppColors.success : AppColors.danger;
     final statusLabel = isSuccess ? '성공' : '실패';
@@ -99,6 +104,82 @@ class SessionHistoryTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
+              ],
+            ),
+          ),
+          if (onDelete != null)
+            IconButton(
+              onPressed: onDelete,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              icon: const Icon(Icons.delete_outline_rounded, size: 20),
+              color: AppColors.textMuted,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fastingTile() {
+    final dateFmt = DateFormat('M/d (E) HH:mm', 'ko');
+    final stage = fastingHistoryStage(session.elapsed);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.timer_outlined, color: accent, size: 22),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  formatDuration(session.elapsed, short: true),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  stage,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  dateFmt.format(session.startTime),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),

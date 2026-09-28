@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/book.dart';
+import '../models/habit.dart';
 import '../models/medication.dart';
 import '../models/session.dart';
 
@@ -15,6 +16,8 @@ class StorageService {
   static const _medicationSetDosesKey = 'medication_set_doses';
   static const _booksKey = 'books';
   static const _readingLogsKey = 'reading_logs';
+  static const _habitsKey = 'habits';
+  static const _habitChecksKey = 'habit_checks';
   static const _selectedBookKey = 'selected_book_id';
   static const _readingDailyGoalKey = 'reading_daily_goal_minutes';
   static const _themeKey = 'theme_mode'; // light | dark
@@ -168,6 +171,44 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     final raw = jsonEncode(logs.map((l) => l.toJson()).toList());
     await prefs.setString(_readingLogsKey, raw);
+  }
+
+  /// 한 번도 저장한 적 없으면 false. 빈 목록을 저장한 경우와 구분한다.
+  Future<bool> hasStoredHabits() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey(_habitsKey);
+  }
+
+  Future<List<Habit>> loadHabits() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_habitsKey);
+    if (raw == null || raw.isEmpty) return [];
+    final list = jsonDecode(raw) as List<dynamic>;
+    return list
+        .map((e) => Habit.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> saveHabits(List<Habit> habits) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = jsonEncode(habits.map((h) => h.toJson()).toList());
+    await prefs.setString(_habitsKey, raw);
+  }
+
+  Future<List<HabitCheck>> loadHabitChecks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_habitChecksKey);
+    if (raw == null || raw.isEmpty) return [];
+    final list = jsonDecode(raw) as List<dynamic>;
+    return list
+        .map((e) => HabitCheck.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> saveHabitChecks(List<HabitCheck> checks) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = jsonEncode(checks.map((c) => c.toJson()).toList());
+    await prefs.setString(_habitChecksKey, raw);
   }
 
   Future<String?> loadSelectedBookId() async {
@@ -339,6 +380,8 @@ class StorageService {
     scanList(data['medicationSets'], ['createdAt']);
     scanList(data['books'], ['createdAt', 'updatedAt']);
     scanList(data['readingLogs'], ['startTime', 'endTime']);
+    scanList(data['habits'], ['createdAt']);
+    scanList(data['habitChecks'], ['checkedAt']);
 
     return maxAt;
   }
@@ -356,6 +399,8 @@ class StorageService {
       'medicationSets': _decodeList(prefs.getString(_medicationSetsKey)),
       'books': _decodeList(prefs.getString(_booksKey)),
       'readingLogs': _decodeList(prefs.getString(_readingLogsKey)),
+      'habits': _decodeList(prefs.getString(_habitsKey)),
+      'habitChecks': _decodeList(prefs.getString(_habitChecksKey)),
     });
   }
 
@@ -411,6 +456,8 @@ class StorageService {
             _decodeList(prefs.getString(_medicationSetDosesKey)),
         'books': _decodeList(prefs.getString(_booksKey)),
         'readingLogs': _decodeList(prefs.getString(_readingLogsKey)),
+        'habits': _decodeList(prefs.getString(_habitsKey)),
+        'habitChecks': _decodeList(prefs.getString(_habitChecksKey)),
         'settings': {
           'themeMode': prefs.getString(_themeKey) ?? 'light',
           'selectedBookId': prefs.getString(_selectedBookKey),
@@ -476,6 +523,20 @@ class StorageService {
       _readingLogsKey,
       jsonEncode(_asList(map['readingLogs'])),
     );
+    // 구버전 백업·다른 기기 동기화에는 키가 없을 수 있다.
+    // 없으면 이 기기에 이미 있는 습관을 지우지 않는다.
+    if (map.containsKey('habits')) {
+      await prefs.setString(
+        _habitsKey,
+        jsonEncode(_asList(map['habits'])),
+      );
+    }
+    if (map.containsKey('habitChecks')) {
+      await prefs.setString(
+        _habitChecksKey,
+        jsonEncode(_asList(map['habitChecks'])),
+      );
+    }
 
     final settingsRaw = map['settings'];
     final settings = settingsRaw is Map

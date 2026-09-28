@@ -26,6 +26,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color dangerSoft;
   final Color warning;
   final Color warningSoft;
+  final Color habit;
+  final Color habitSoft;
   final Color shadow;
   final Color navBar;
   final Color chipBg;
@@ -52,6 +54,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.dangerSoft,
     required this.warning,
     required this.warningSoft,
+    required this.habit,
+    required this.habitSoft,
     required this.shadow,
     required this.navBar,
     required this.chipBg,
@@ -80,6 +84,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     dangerSoft: Color(0xFFFEECEC),
     warning: Color(0xFFF59E0B),
     warningSoft: Color(0xFFFEF5E6),
+    habit: Color(0xFFE25B2A),
+    habitSoft: Color(0xFFFFEDE4),
     shadow: Color(0x140A1628),
     navBar: Color(0xFFFFFFFF),
     chipBg: Color(0xFFF0F3F8),
@@ -108,6 +114,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     dangerSoft: Color(0xFF3A1A1A),
     warning: Color(0xFFFFB020),
     warningSoft: Color(0xFF3A2A10),
+    habit: Color(0xFFFF8A5C),
+    habitSoft: Color(0xFF3A2418),
     shadow: Color(0x66000000),
     navBar: Color(0xFF151B24),
     chipBg: Color(0xFF1C2430),
@@ -140,6 +148,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? dangerSoft,
     Color? warning,
     Color? warningSoft,
+    Color? habit,
+    Color? habitSoft,
     Color? shadow,
     Color? navBar,
     Color? chipBg,
@@ -166,6 +176,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
       dangerSoft: dangerSoft ?? this.dangerSoft,
       warning: warning ?? this.warning,
       warningSoft: warningSoft ?? this.warningSoft,
+      habit: habit ?? this.habit,
+      habitSoft: habitSoft ?? this.habitSoft,
       shadow: shadow ?? this.shadow,
       navBar: navBar ?? this.navBar,
       chipBg: chipBg ?? this.chipBg,
@@ -197,6 +209,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
       dangerSoft: Color.lerp(dangerSoft, other.dangerSoft, t)!,
       warning: Color.lerp(warning, other.warning, t)!,
       warningSoft: Color.lerp(warningSoft, other.warningSoft, t)!,
+      habit: Color.lerp(habit, other.habit, t)!,
+      habitSoft: Color.lerp(habitSoft, other.habitSoft, t)!,
       shadow: Color.lerp(shadow, other.shadow, t)!,
       navBar: Color.lerp(navBar, other.navBar, t)!,
       chipBg: Color.lerp(chipBg, other.chipBg, t)!,
@@ -234,6 +248,8 @@ class AppColors {
   static Color get dangerSoft => _p.dangerSoft;
   static Color get warning => _p.warning;
   static Color get warningSoft => _p.warningSoft;
+  static Color get habit => _p.habit;
+  static Color get habitSoft => _p.habitSoft;
   static Color get shadow => _p.shadow;
   static Color get navBar => _p.navBar;
   static Color get chipBg => _p.chipBg;
