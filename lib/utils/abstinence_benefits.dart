@@ -20,7 +20,7 @@ const abstinenceMilestones = <AbstinenceMilestone>[
     title: '시작 · 결심 단계',
     summary: '의지를 세운 직후',
     benefits:
-        '목표를 정한 것만으로도 변화가 시작됩니다. 충동이 와도 짧게 참아보는 연습이 이어집니다.',
+        '시작한 것만으로도 변화가 시작됩니다. 충동이 와도 짧게 참아보는 연습이 이어집니다.',
   ),
   AbstinenceMilestone(
     from: Duration(hours: 6),
@@ -137,4 +137,39 @@ AbstinenceBenefitSnapshot abstinenceBenefitsFor(Duration elapsed) {
         ? Duration.zero
         : untilNext,
   );
+}
+
+/// 알림으로 알릴 구간. 12시간부터의 모든 단계.
+List<AbstinenceMilestone> get abstinenceNotifyMarks => [
+      for (final milestone in abstinenceMilestones)
+        if (milestone.from >= const Duration(hours: 12)) milestone,
+    ];
+
+int abstinenceNotifyId(Duration from) => 3100 + from.inHours;
+
+String abstinenceMarkLabel(Duration from) {
+  if (from.inDays >= 1 && from.inHours.remainder(24) == 0) {
+    return '${from.inDays}일';
+  }
+  return '${from.inHours}시간';
+}
+
+/// 홈·기록용 한 줄. 시간은 실제 경과, 이름은 지금 구간.
+String abstinenceProgressCaption(Duration elapsed) {
+  final current = abstinenceBenefitsFor(elapsed).current;
+  final d = elapsed.isNegative ? Duration.zero : elapsed;
+  if (d.inHours <= 0) return current.title;
+  if (d.inDays >= 1) return '${d.inDays}일 지남 · ${current.title}';
+  return '${d.inHours}시간 지남 · ${current.title}';
+}
+
+String abstinenceHistoryStage(Duration elapsed) {
+  return abstinenceBenefitsFor(elapsed).current.title;
+}
+
+/// 타이머 링 아래. 다음 단계 시각.
+String abstinenceRingFooter(AbstinenceBenefitSnapshot snap) {
+  final next = snap.next;
+  if (next == null) return snap.current.title;
+  return '다음 ${abstinenceMarkLabel(next.from)}';
 }

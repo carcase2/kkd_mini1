@@ -78,15 +78,16 @@ void main() {
     expect(session.isTargetReached, isFalse);
   });
 
-  test('금욕은 목표 미달이면 실패다', () {
+  test('금욕은 예전 목표가 있어도 종료 시 완료다', () {
     final session = TrackingSession(
       id: '2',
       type: SessionType.abstinence,
       startTime: DateTime(2026, 9, 22, 8),
-      endTime: DateTime(2026, 9, 22, 12),
+      endTime: DateTime(2026, 9, 23, 12),
       targetDuration: const Duration(days: 7),
       status: SessionStatus.active,
     );
-    expect(session.endStatus, SessionStatus.failed);
+    expect(session.endStatus, SessionStatus.completed);
+    expect(session.isTargetReached, isFalse);
   });
 }

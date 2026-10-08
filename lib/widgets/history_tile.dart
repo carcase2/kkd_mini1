@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../models/session.dart';
 import '../theme/app_theme.dart';
+import '../utils/abstinence_benefits.dart';
 import '../utils/fasting_benefits.dart';
 import '../utils/format.dart';
 
@@ -20,110 +21,11 @@ class SessionHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (session.type == SessionType.fasting) {
-      return _fastingTile();
-    }
-
-    final isSuccess = session.status == SessionStatus.completed;
-    final statusColor = isSuccess ? AppColors.success : AppColors.danger;
-    final statusLabel = isSuccess ? '성공' : '실패';
+    final isFasting = session.type == SessionType.fasting;
+    final stage = isFasting
+        ? fastingHistoryStage(session.elapsed)
+        : abstinenceHistoryStage(session.elapsed);
     final dateFmt = DateFormat('M/d (E) HH:mm', 'ko');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              isSuccess ? Icons.check_rounded : Icons.close_rounded,
-              color: statusColor,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      statusLabel,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        formatDuration(session.elapsed, short: true),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  dateFmt.format(session.startTime),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (session.targetDuration != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    '목표 ${formatTargetDuration(session.targetDuration)}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: accent.withValues(alpha: 0.8),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (onDelete != null)
-            IconButton(
-              onPressed: onDelete,
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-              icon: const Icon(Icons.delete_outline_rounded, size: 20),
-              color: AppColors.textMuted,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _fastingTile() {
-    final dateFmt = DateFormat('M/d (E) HH:mm', 'ko');
-    final stage = fastingHistoryStage(session.elapsed);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -142,7 +44,11 @@ class SessionHistoryTile extends StatelessWidget {
               color: accent.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.timer_outlined, color: accent, size: 22),
+            child: Icon(
+              isFasting ? Icons.timer_outlined : Icons.shield_outlined,
+              color: accent,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(

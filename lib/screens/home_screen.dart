@@ -10,6 +10,7 @@ import '../services/supabase_sync_service.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_version.dart';
+import '../utils/abstinence_benefits.dart';
 import '../utils/fasting_benefits.dart';
 import '../utils/format.dart';
 import '../widgets/cloud_refresh.dart';
@@ -287,7 +288,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     colors: c,
                     elapsed: fasting.elapsed,
                     target: null,
-                    startTime: fasting.startTime,
                     caption: fastingProgressCaption(fasting.elapsed),
                     onTap: () => _goTo(1),
                   ),
@@ -303,9 +303,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     soft: c.abstinenceSoft,
                     colors: c,
                     elapsed: abstinence.elapsed,
-                    target: abstinence.targetDuration,
-                    startTime: abstinence.startTime,
-                    showExpectedEnd: true,
+                    target: null,
+                    caption: abstinenceProgressCaption(abstinence.elapsed),
                     onTap: () => _goTo(2),
                   ),
                 ),
@@ -321,7 +320,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     colors: c,
                     elapsed: reading.elapsed,
                     target: Duration(minutes: state.readingDailyGoalMinutes),
-                    startTime: reading.startTime,
                     onTap: () => _goTo(3),
                   ),
                 ),
@@ -380,8 +378,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       status: abstinence != null
                           ? '${formatDuration(abstinence.elapsed, short: true)} 진행'
                           : '대기 중',
-                      detail:
-                          '성공 ${state.abstinenceSuccess} · 실패 ${state.abstinenceFailed} · 총 ${state.abstinenceTotal}회',
+                      detail: abstinence != null
+                          ? abstinenceProgressCaption(abstinence.elapsed)
+                          : '총 ${state.abstinenceTotal}회 · 최장 ${state.abstinenceTotal == 0 ? '-' : formatDurationTiny(state.abstinenceLongest)}',
                       onTap: () => _goTo(2),
                     ),
                     const SizedBox(height: 8),
@@ -455,8 +454,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       status: state.fastingTotal == 0
                           ? '단식 기록 없음'
                           : '단식 최장 ${formatDurationTiny(state.fastingLongest)}',
-                      detail:
-                          '금욕 성공 ${formatPercent(state.abstinenceSuccessRate)}',
+                      detail: state.abstinenceTotal == 0
+                          ? '금욕 기록 없음'
+                          : '금욕 최장 ${formatDurationTiny(state.abstinenceLongest)}',
                       onTap: () => _goTo(7),
                     ),
                   ],
@@ -1364,7 +1364,7 @@ class _LockSettingsSheetState extends State<_LockSettingsSheet> {
               ),
             ),
             subtitle: Text(
-              '단식은 지난 시간마다, 금욕은 목표 중간에 알림',
+              '단식·금욕은 지난 구간마다 알림',
               style: TextStyle(fontSize: 12, color: c.textMuted),
             ),
             value: state.sessionNotificationsEnabled,
@@ -1714,8 +1714,6 @@ class _ActiveCard extends StatelessWidget {
   final AppPalette colors;
   final Duration elapsed;
   final Duration? target;
-  final DateTime? startTime;
-  final bool showExpectedEnd;
   final String? caption;
   final VoidCallback onTap;
 
@@ -1726,38 +1724,15 @@ class _ActiveCard extends StatelessWidget {
     required this.colors,
     required this.elapsed,
     required this.target,
-    this.startTime,
-    this.showExpectedEnd = false,
     this.caption,
     required this.onTap,
   });
-
-  String? get _expectedEndLabel {
-    if (!showExpectedEnd || target == null || startTime == null) return null;
-    final end = startTime!.add(target!);
-    return '완료 예정 ${DateFormat('M/d (E) HH:mm', 'ko').format(end)}';
-  }
-
-  String? get _remainingLabel {
-    if (!showExpectedEnd || target == null) return null;
-    if (elapsed >= target!) {
-      final pct = target!.inSeconds > 0
-          ? ((elapsed.inSeconds / target!.inSeconds) * 100).toStringAsFixed(0)
-          : null;
-      return pct != null ? '$pct% 완료' : '목표 시간 도달';
-    }
-    final left = target! - elapsed;
-    return '남은 시간 ${formatDuration(left, short: true)}';
-  }
 
   @override
   Widget build(BuildContext context) {
     final pct = target != null && target!.inSeconds > 0
         ? ((elapsed.inSeconds / target!.inSeconds) * 100).toStringAsFixed(0)
         : null;
-    final expectedEnd = _expectedEndLabel;
-    final remaining = _remainingLabel;
-    final reached = target != null && elapsed >= target!;
 
     return Material(
       color: soft,
@@ -1819,30 +1794,7 @@ class _ActiveCard extends StatelessWidget {
                         height: 1.1,
                       ),
                     ),
-                    if (caption == null && remaining != null) ...[
-                      const SizedBox(height: 2),
-                      _CardLine(
-                        text: remaining,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: reached ? colors.success : color,
-                          height: 1.1,
-                        ),
-                      ),
-                    ],
-                    if (caption == null && expectedEnd != null && !reached) ...[
-                      const SizedBox(height: 2),
-                      _CardLine(
-                        text: expectedEnd,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: color,
-                          height: 1.1,
-                        ),
-                      ),
-                    ],
+
                   ],
                 ),
               ),
@@ -1858,7 +1810,7 @@ class _ActiveCard extends StatelessWidget {
 /// 빠른 현황 — 제목 아래 상세 (잘림 없음)
 /// [아이콘]  단식
 ///          대기 중
-///          성공 0 · 실패 1 · 총 1회  ›
+///          총 3회 · 최장 2일  ›
 class _QuickRow extends StatelessWidget {
   final String title;
   final IconData icon;

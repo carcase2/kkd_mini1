@@ -9,10 +9,10 @@ import '../theme/app_theme.dart';
 import '../utils/abstinence_benefits.dart';
 import '../utils/fasting_benefits.dart';
 import '../utils/format.dart';
+import '../widgets/abstinence_start_card.dart';
 import '../widgets/cloud_refresh.dart';
 import '../widgets/fasting_stage_card.dart';
 import '../widgets/history_tile.dart';
-import '../widgets/preset_picker.dart';
 import '../widgets/start_session_sheet.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/sticky_bottom_bar.dart';
@@ -29,12 +29,11 @@ class TrackingScreen extends StatelessWidget {
   String get title => isFasting ? '단식' : '금욕';
   String get subtitle => isFasting
       ? '시작하면 시간이 쌓이고, 단계마다 장점이 나와요'
-      : '야동 · 자극 콘텐츠 끊기';
+      : '시작하면 시간이 쌓이고, 구간마다 변화가 나와요';
   Color get accent => isFasting ? AppColors.fasting : AppColors.abstinence;
   Color get soft => isFasting ? AppColors.fastingSoft : AppColors.abstinenceSoft;
   IconData get icon =>
       isFasting ? Icons.restaurant_outlined : Icons.shield_outlined;
-  List<DurationPreset> get presets => abstinencePresets;
 
   @override
   Widget build(BuildContext context) {
@@ -43,15 +42,13 @@ class TrackingScreen extends StatelessWidget {
         isFasting ? state.activeFasting : state.activeAbstinence;
     final history =
         isFasting ? state.fastingHistory : state.abstinenceHistory;
-    final success =
-        isFasting ? state.fastingSuccess : state.abstinenceSuccess;
-    final failed =
-        isFasting ? state.fastingFailed : state.abstinenceFailed;
     final total = isFasting ? state.fastingTotal : state.abstinenceTotal;
-    final rate =
-        isFasting ? state.fastingSuccessRate : state.abstinenceSuccessRate;
     final longest =
         isFasting ? state.fastingLongest : state.abstinenceLongest;
+    final totalTime =
+        isFasting ? state.fastingTotalTime : state.abstinenceTotalTime;
+    final average =
+        isFasting ? state.fastingAverage : state.abstinenceAverage;
 
     return Scaffold(
       body: SafeArea(
@@ -70,20 +67,27 @@ class TrackingScreen extends StatelessWidget {
                 accent: accent,
                 soft: soft,
                 icon: icon,
-                presets: presets,
-                success: success,
-                failed: failed,
                 total: total,
-                rate: rate,
                 longest: longest,
-                totalTime: isFasting ? state.fastingTotalTime : Duration.zero,
-                average: isFasting ? state.fastingAverage : Duration.zero,
+                totalTime: totalTime,
+                average: average,
                 history: history,
-                allowDays: !isFasting,
-                milestoneMode: isFasting,
-                onStart: (duration) => _start(context, duration),
-                onStartNow: isFasting ? () => _startNow(context) : null,
-                onStartPast: isFasting ? () => _startPast(context) : null,
+                emptyHistory: isFasting
+                    ? '아직 기록이 없어요.\n단식을 시작하면 여기에 시간이 쌓여요.'
+                    : '아직 기록이 없어요.\n금욕을 시작하면 여기에 시간이 쌓여요.',
+                startCard: isFasting
+                    ? FastingStartCard(
+                        accent: accent,
+                        soft: soft,
+                        onStartNow: () => _startNow(context),
+                        onStartPast: () => _startPast(context),
+                      )
+                    : AbstinenceStartCard(
+                        accent: accent,
+                        soft: soft,
+                        onStartNow: () => _startNow(context),
+                        onStartPast: () => _startPast(context),
+                      ),
                 onDeleteHistory: (id) =>
                     context.read<AppState>().deleteSession(id),
               ),
@@ -106,7 +110,9 @@ class TrackingScreen extends StatelessWidget {
       accent: accent,
       targetDuration: null,
       goalLabel: '지난 시각부터 이어서',
-      openEndedNote: '고른 시각부터 시간이 쌓이고, 12·24·48시간 등 그 구간의 장점이 나와요.',
+      openEndedNote: isFasting
+          ? '고른 시각부터 시간이 쌓이고, 12·24·48시간 등 그 구간의 장점이 나와요.'
+          : '고른 시각부터 시간이 쌓이고, 1일·7일·30일 등 그 구간의 변화가 나와요.',
       pickPast: true,
     );
     if (result == null || !context.mounted) return;
@@ -118,98 +124,20 @@ class TrackingScreen extends StatelessWidget {
         );
   }
 
-  Future<void> _start(BuildContext context, Duration? duration) async {
-    final result = await showStartSessionSheet(
-      context,
-      title: title,
-      accent: accent,
-      targetDuration: duration,
-    );
-    if (result == null || !context.mounted) return;
-
-    HapticFeedback.mediumImpact();
-    await context.read<AppState>().startSession(
-          type: type,
-          targetDuration: result.targetDuration,
-          startTime: result.startTime,
-        );
-  }
-
   Future<void> _confirmEnd(
     BuildContext context,
     TrackingSession session,
   ) async {
-    if (session.type == SessionType.fasting) {
-      await _confirmEndFasting(context, session);
-      return;
-    }
-
-    final willSucceed = session.endStatus == SessionStatus.completed;
-    final pct = session.targetDuration != null &&
-            session.targetDuration!.inSeconds > 0
-        ? (session.progress * 100).toStringAsFixed(0)
-        : null;
-
-    final String content;
-    if (session.isOpenEnded) {
-      content =
-          '${formatDuration(session.elapsed, short: true)} 동안 유지했습니다. 성공으로 기록할까요?';
-    } else if (willSucceed) {
-      content =
-          '목표 달성 · $pct% 완료. ${formatDuration(session.elapsed, short: true)} 진행했습니다. 성공으로 기록할까요?';
-    } else {
-      content =
-          '목표(${formatTargetDuration(session.targetDuration)}) 미달 · $pct%. '
-          '실패로 기록할까요?';
-    }
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(willSucceed ? '$title 종료 · 성공' : '$title 종료 · 실패'),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('계속하기'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor:
-                  willSucceed ? AppColors.success : AppColors.danger,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(willSucceed ? '성공 기록' : '실패 기록'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true && context.mounted) {
-      HapticFeedback.mediumImpact();
-      final status = await context.read<AppState>().endSession(session.id);
-      if (!context.mounted || status == null) return;
-      final success = status == SessionStatus.completed;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success ? '$title 성공! 잘했어요 🎉' : '$title 실패 기록됨. 다시 도전해요 💪',
-          ),
-        ),
-      );
-    }
-  }
-
-  Future<void> _confirmEndFasting(
-    BuildContext context,
-    TrackingSession session,
-  ) async {
     final elapsedLabel = formatDuration(session.elapsed, short: true);
-    final stage = fastingHistoryStage(session.elapsed);
+    final stage = isFasting
+        ? fastingHistoryStage(session.elapsed)
+        : abstinenceHistoryStage(session.elapsed);
+    final verb = isFasting ? '단식했습니다' : '유지했습니다';
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('단식을 마칠까요?'),
-        content: Text('$elapsedLabel 단식했습니다.\n$stage\n이 시간으로 기록합니다.'),
+        title: Text('$title을 마칠까요?'),
+        content: Text('$elapsedLabel $verb.\n$stage\n이 시간으로 기록합니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -228,7 +156,7 @@ class TrackingScreen extends StatelessWidget {
       final status = await context.read<AppState>().endSession(session.id);
       if (!context.mounted || status == null) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$elapsedLabel 단식을 기록했어요')),
+        SnackBar(content: Text('$elapsedLabel $title을 기록했어요')),
       );
     }
   }
@@ -281,26 +209,12 @@ class _ActiveView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final remaining = session.remaining;
-    final reached = session.isTargetReached;
-    final pct = session.targetDuration != null &&
-            session.targetDuration!.inSeconds > 0
-        ? (session.progress * 100).toStringAsFixed(0)
-        : null;
     final isFasting = session.type == SessionType.fasting;
     final fastingSnap =
         isFasting ? fastingBenefitsFor(session.elapsed) : null;
-    final endColor = isFasting
-        ? accent
-        : (reached || session.isOpenEnded
-            ? AppColors.success
-            : AppColors.danger);
-    final endSoft = isFasting
-        ? soft
-        : (reached || session.isOpenEnded
-            ? AppColors.successSoft
-            : AppColors.dangerSoft);
-    final endLabel = isFasting ? '단식 마치기' : '종료';
+    final abstinenceSnap =
+        isFasting ? null : abstinenceBenefitsFor(session.elapsed);
+    final endLabel = isFasting ? '단식 마치기' : '금욕 마치기';
 
     return Column(
       children: [
@@ -331,128 +245,26 @@ class _ActiveView extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                if (!isFasting && reached && session.targetDuration != null)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.successSoft,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.success.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.celebration_rounded,
-                          color: AppColors.success,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '목표 달성 · $pct% 완료. 원하는 만큼 더 이어가다 종료하세요',
-                            style: TextStyle(
-                              color: AppColors.success,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 const SizedBox(height: 24),
                 TimerRing(
                   elapsed: session.elapsed,
                   target: isFasting
                       ? fastingSnap!.next?.from
-                      : session.targetDuration,
-                  footer: fastingSnap == null
-                      ? null
-                      : fastingRingFooter(fastingSnap),
+                      : abstinenceSnap!.next?.from,
+                  footer: isFasting
+                      ? fastingRingFooter(fastingSnap!)
+                      : abstinenceRingFooter(abstinenceSnap!),
                   color: accent,
-                  size: isFasting ? 220 : 260,
+                  size: 220,
                   label: title,
                 ),
                 const SizedBox(height: 20),
-                if (!isFasting && remaining != null && !reached) ...[
-                  Text(
-                    '남은 시간 ${formatDuration(remaining, short: true)}',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  // 한 줄 유지: 짧은 형식 + 필요 시 자동 축소
-                  SizedBox(
-                    width: double.infinity,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        '완료 예정 ${DateFormat('M/d (E) HH:mm', 'ko').format(session.startTime.add(session.targetDuration!))}',
-                        style: TextStyle(
-                          color: accent,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        maxLines: 1,
-                      ),
-                    ),
-                  ),
-                ],
-                if (!isFasting && reached && pct != null)
-                  Text(
-                    '$pct% 완료 · 목표 초과 진행 중',
-                    style: TextStyle(
-                      color: AppColors.success,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                const SizedBox(height: 8),
                 Text(
                   '시작 ${DateFormat('M/d (E) HH:mm', 'ko').format(session.startTime)}',
                   style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (!isFasting &&
-                    reached &&
-                    session.targetDuration != null &&
-                    session.startTime
-                        .add(session.targetDuration!)
-                        .isBefore(DateTime.now()))
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.center,
-                        child: Text(
-                          '목표 시각 ${DateFormat('M/d (E) HH:mm', 'ko').format(session.startTime.add(session.targetDuration!))} 도달',
-                          style: TextStyle(
-                            color: AppColors.success,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                        ),
-                      ),
-                    ),
-                  ),
                 if (isFasting) ...[
                   const SizedBox(height: 20),
                   FastingStageCard(
@@ -506,7 +318,7 @@ class _ActiveView extends StatelessWidget {
                       Text(
                         session.type == SessionType.fasting
                             ? '물, 무가당 차, 블랙 커피는 보통 단식 중 허용됩니다. 몸이 힘들면 무리하지 마세요.'
-                            : '충동이 올 때 자리 이동, 운동, 짧은 산책이 도움이 됩니다. 실패해도 다시 시작하면 됩니다.',
+                            : '충동이 올 때 자리 이동, 운동, 짧은 산책이 도움이 됩니다. 마치면 그 시간으로 기록되고, 다시 시작할 수 있어요.',
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 13,
@@ -525,8 +337,8 @@ class _ActiveView extends StatelessWidget {
           child: StickyActionButton(
             label: endLabel,
             icon: Icons.stop_rounded,
-            color: endColor,
-            soft: endSoft,
+            color: accent,
+            soft: soft,
             filled: true,
             onTap: onEnd,
           ),
@@ -748,20 +560,13 @@ class _IdleView extends StatelessWidget {
   final Color accent;
   final Color soft;
   final IconData icon;
-  final List<DurationPreset> presets;
-  final int success;
-  final int failed;
   final int total;
-  final double rate;
   final Duration longest;
   final Duration totalTime;
   final Duration average;
   final List<TrackingSession> history;
-  final bool allowDays;
-  final bool milestoneMode;
-  final void Function(Duration? duration) onStart;
-  final VoidCallback? onStartNow;
-  final VoidCallback? onStartPast;
+  final String emptyHistory;
+  final Widget startCard;
   final void Function(String id) onDeleteHistory;
 
   const _IdleView({
@@ -770,20 +575,13 @@ class _IdleView extends StatelessWidget {
     required this.accent,
     required this.soft,
     required this.icon,
-    required this.presets,
-    required this.success,
-    required this.failed,
     required this.total,
-    required this.rate,
     required this.longest,
-    this.totalTime = Duration.zero,
-    this.average = Duration.zero,
+    required this.totalTime,
+    required this.average,
     required this.history,
-    required this.allowDays,
-    this.milestoneMode = false,
-    required this.onStart,
-    this.onStartNow,
-    this.onStartPast,
+    required this.emptyHistory,
+    required this.startCard,
     required this.onDeleteHistory,
   });
 
@@ -839,82 +637,35 @@ class _IdleView extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
             child: StatsRow(
-              chips: milestoneMode
-                  ? [
-                      QuickStatChip(
-                        label: '횟수',
-                        value: '$total',
-                        color: accent,
-                      ),
-                      QuickStatChip(
-                        label: '누적',
-                        value: total == 0
-                            ? '-'
-                            : formatDurationTiny(totalTime),
-                        color: AppColors.fasting,
-                      ),
-                      QuickStatChip(
-                        label: '최장',
-                        value: total == 0
-                            ? '-'
-                            : formatDurationTiny(longest),
-                        color: AppColors.warning,
-                      ),
-                      QuickStatChip(
-                        label: '평균',
-                        value: total == 0 ? '-' : formatDurationTiny(average),
-                        color: AppColors.success,
-                      ),
-                    ]
-                  : [
-                      QuickStatChip(
-                        label: '성공',
-                        value: '$success',
-                        color: AppColors.success,
-                      ),
-                      QuickStatChip(
-                        label: '실패',
-                        value: '$failed',
-                        color: AppColors.danger,
-                      ),
-                      QuickStatChip(
-                        label: '성공률',
-                        value: formatPercent(rate),
-                        color: accent,
-                      ),
-                      QuickStatChip(
-                        label: '최장',
-                        value: total == 0 ? '-' : formatDurationTiny(longest),
-                        color: AppColors.warning,
-                      ),
-                    ],
+              chips: [
+                QuickStatChip(
+                  label: '횟수',
+                  value: '$total',
+                  color: accent,
+                ),
+                QuickStatChip(
+                  label: '누적',
+                  value: total == 0 ? '-' : formatDurationTiny(totalTime),
+                  color: accent,
+                ),
+                QuickStatChip(
+                  label: '최장',
+                  value: total == 0 ? '-' : formatDurationTiny(longest),
+                  color: AppColors.warning,
+                ),
+                QuickStatChip(
+                  label: '평균',
+                  value: total == 0 ? '-' : formatDurationTiny(average),
+                  color: AppColors.success,
+                ),
+              ],
             ),
           ),
         ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: milestoneMode
-                ? FastingStartCard(
-                    accent: accent,
-                    soft: soft,
-                    onStartNow: onStartNow ?? () {},
-                    onStartPast: onStartPast ?? () {},
-                  )
-                : PresetPicker(
-                    presets: presets,
-                    accent: accent,
-                    onSelected: onStart,
-                    onCustom: () async {
-                      final d = await showCustomDurationDialog(
-                        context,
-                        title: '$title 커스텀 시간',
-                        accent: accent,
-                        allowDays: allowDays,
-                      );
-                      if (d != null) onStart(d);
-                    },
-                  ),
+            child: startCard,
           ),
         ),
         SliverToBoxAdapter(
@@ -947,9 +698,7 @@ class _IdleView extends StatelessWidget {
               padding: EdgeInsets.all(40),
               child: Center(
                 child: Text(
-                  milestoneMode
-                      ? '아직 기록이 없어요.\n단식을 시작하면 여기에 시간이 쌓여요.'
-                      : '아직 기록이 없어요.\n위에서 목표를 골라 시작해보세요!',
+                  emptyHistory,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textMuted, height: 1.5),
                 ),

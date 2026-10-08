@@ -172,14 +172,6 @@ class AppState extends ChangeNotifier {
   }
 
   int get abstinenceTotal => abstinenceHistory.length;
-  int get abstinenceSuccess => abstinenceHistory
-      .where((s) => s.status == SessionStatus.completed)
-      .length;
-  int get abstinenceFailed =>
-      abstinenceHistory.where((s) => s.status == SessionStatus.failed).length;
-
-  double get abstinenceSuccessRate =>
-      abstinenceTotal == 0 ? 0 : abstinenceSuccess / abstinenceTotal;
 
   Duration get abstinenceTotalTime {
     return abstinenceHistory.fold(
@@ -193,6 +185,18 @@ class AppState extends ChangeNotifier {
     return abstinenceHistory
         .map((s) => s.elapsed)
         .reduce((a, b) => a > b ? a : b);
+  }
+
+  Duration get abstinenceAverage {
+    if (abstinenceHistory.isEmpty) return Duration.zero;
+    return Duration(
+      seconds: abstinenceTotalTime.inSeconds ~/ abstinenceHistory.length,
+    );
+  }
+
+  int abstinenceReachedDays(int days) {
+    final mark = Duration(days: days);
+    return abstinenceHistory.where((s) => s.elapsed >= mark).length;
   }
 
   /// 현재 활성 금욕 세션이 있으면 그 elapsed, 없으면 마지막 완료 세션 이후
@@ -1142,10 +1146,7 @@ class AppState extends ChangeNotifier {
     );
     _sessions.add(session);
     await _persistSessions();
-    final notify = _sessionNotificationsEnabled &&
-        (type == SessionType.fasting ||
-            (targetDuration != null && targetDuration.inSeconds > 0));
-    if (notify) {
+    if (_sessionNotificationsEnabled) {
       await NotificationService.instance.requestPermission(
         requestExactAlarm: true,
       );
@@ -1184,7 +1185,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 단식은 경과 시간으로 기록. 금욕은 목표 달성·자유 모드면 성공, 미달이면 실패.
+  /// 단식·금욕은 경과 시간으로 기록하고 항상 완료로 저장한다.
   Future<SessionStatus?> endSession(String id) async {
     final idx = _sessions.indexWhere((s) => s.id == id);
     if (idx < 0) return null;
@@ -1690,8 +1691,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _reachNotifyBusy = false;
-
   @override
   void dispose() {
     _autoBackupDebounce?.cancel();
@@ -1713,23 +1712,6 @@ class AppState extends ChangeNotifier {
         _medicationSets.any((s) => s.active && lastSetDose(s.id) != null) ||
         (dayChanged && _habits.any((h) => h.active))) {
       notifyListeners();
-    }
-    unawaited(_maybeNotifyReachedTargets());
-  }
-
-  Future<void> _maybeNotifyReachedTargets() async {
-    if (!_sessionNotificationsEnabled || _reachNotifyBusy) return;
-    final reached = <TrackingSession>[
-      if (activeAbstinence?.isTargetReached == true) activeAbstinence!,
-    ];
-    if (reached.isEmpty) return;
-    _reachNotifyBusy = true;
-    try {
-      await NotificationService.instance.notifyReachedTargets(reached);
-    } catch (_) {
-      // 알림 실패해도 타이머는 계속
-    } finally {
-      _reachNotifyBusy = false;
     }
   }
 }

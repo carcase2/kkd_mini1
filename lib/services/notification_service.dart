@@ -6,8 +6,8 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../models/session.dart';
+import '../utils/abstinence_benefits.dart';
 import '../utils/fasting_benefits.dart';
-import '../utils/format.dart';
 
 /// 목표 시각이 지났을 때 즉시 완료 알림을 보낼지.
 ///
@@ -26,7 +26,7 @@ bool shouldDeliverMissedCompletion({
   return now.difference(endTime) >= grace;
 }
 
-/// 단식·금욕 목표 알림 (중간 50% / 10% 남음 / 완료)
+/// 단식·금욕 구간 알림
 ///
 /// 기기 로컬 예약 알림을 사용합니다.
 /// (세션 시각이 기기에서만 관리되므로 FCM 서버 푸시 없이도
@@ -43,7 +43,7 @@ class NotificationService {
 
   static const _channelId = 'session_milestones';
   static const _channelName = '세션 알림';
-  static const _channelDesc = '단식 단계 도달 · 금욕 목표 알림';
+  static const _channelDesc = '단식·금욕 구간 도달 알림';
   static const _shownDonePrefix = 'session_notif_done_';
 
   // 알림 ID (타입별 고정 슬롯 — 세션당 최대 3개)
@@ -201,8 +201,7 @@ class NotificationService {
   }
 
   /// 활성 세션 알림 예약.
-  /// 단식은 12시간 이후 단계마다, 금욕은 목표 중간·완료.
-  /// 이미 지난 단식 단계는 다시 울리지 않는다.
+  /// 단식·금욕 모두 12시간 이후 구간마다. 이미 지난 구간은 다시 울리지 않는다.
   Future<void> scheduleSessionMilestones(TrackingSession session) async {
     if (!_enabled) return;
     if (!_ready) await init();
@@ -218,95 +217,7 @@ class NotificationService {
       return;
     }
 
-    final target = session.targetDuration;
-    if (target == null || target.inSeconds <= 0) {
-      await cancelForType(session.type);
-      return;
-    }
-
-    final title = session.type == SessionType.fasting ? '단식' : '금욕';
-    final start = session.startTime;
-    final end = start.add(target);
-    final half = start.add(Duration(seconds: target.inSeconds ~/ 2));
-    final tenLeft = start.add(
-      Duration(seconds: (target.inSeconds * 0.9).floor()),
-    );
-
-    final remainingAtHalf = end.difference(half);
-    final remainingAtTen = end.difference(tenLeft);
-
-    final ids = _idsFor(session.type);
-
-    await _scheduleIfFuture(
-      id: ids[0],
-      when: half,
-      title: '$title · 절반 지났어요',
-      body:
-          '중간 지점 통과! 남은 시간 ${formatDuration(remainingAtHalf, short: true)}',
-      payload: 'session_${session.type.name}_half',
-    );
-
-    await _scheduleIfFuture(
-      id: ids[1],
-      when: tenLeft,
-      title: '$title · 10% 남았어요',
-      body:
-          '거의 다 왔어요. 남은 시간 ${formatDuration(remainingAtTen, short: true)}',
-      payload: 'session_${session.type.name}_10',
-    );
-
-    await _scheduleIfFuture(
-      id: ids[2],
-      when: end,
-      title: '$title · 목표 달성! 🎉',
-      body: '목표 시간에 도달했어요. 앱에서 종료하거나 더 이어갈 수 있어요.',
-      payload: 'session_${session.type.name}_done',
-      fireIfMissed: true,
-      sessionId: session.id,
-    );
-  }
-
-  /// 포그라운드에서 목표 도달을 감지했을 때 완료 알림이 빠졌으면 보완.
-  Future<void> notifyReachedTargets(Iterable<TrackingSession> sessions) async {
-    if (!_enabled) return;
-    if (!_ready) await init();
-    if (!_ready) return;
-
-    final now = DateTime.now();
-    for (final session in sessions) {
-      if (session.type == SessionType.fasting) continue;
-      if (session.status != SessionStatus.active) continue;
-      if (!session.isTargetReached) continue;
-      final target = session.targetDuration;
-      if (target == null) continue;
-
-      final alreadyShown = await _alreadyShownDone(session.id);
-      final ids = _idsFor(session.type);
-      final visibleOrPending = await _doneAlreadyVisibleOrPending(ids[2]);
-      if (visibleOrPending) {
-        await _markShownDone(session.id);
-        continue;
-      }
-
-      final end = session.startTime.add(target);
-      if (!shouldDeliverMissedCompletion(
-        endTime: end,
-        now: now,
-        alreadyShown: alreadyShown,
-        alreadyVisibleOrPending: false,
-      )) {
-        continue;
-      }
-
-      final title = session.type == SessionType.fasting ? '단식' : '금욕';
-      await _showNow(
-        id: ids[2],
-        title: '$title · 목표 달성! 🎉',
-        body: '목표 시간에 도달했어요. 앱에서 종료하거나 더 이어갈 수 있어요.',
-        payload: 'session_${session.type.name}_done',
-      );
-      await _markShownDone(session.id);
-    }
+    await _scheduleAbstinenceMarks(session);
   }
 
   Future<void> rescheduleActiveSessions(
@@ -333,6 +244,23 @@ class NotificationService {
       await scheduleSessionMilestones(abstinence);
     } else {
       await cancelForType(SessionType.abstinence);
+    }
+  }
+
+  Future<void> _scheduleAbstinenceMarks(TrackingSession session) async {
+    await cancelForType(SessionType.abstinence);
+    if (session.status != SessionStatus.active) return;
+
+    final start = session.startTime;
+    for (final mark in abstinenceNotifyMarks) {
+      final label = abstinenceMarkLabel(mark.from);
+      await _scheduleIfFuture(
+        id: abstinenceNotifyId(mark.from),
+        when: start.add(mark.from),
+        title: '금욕 · $label 지났습니다',
+        body: mark.summary,
+        payload: 'abstinence_mark_$label',
+      );
     }
   }
 
@@ -363,7 +291,12 @@ class NotificationService {
         for (final hours in fastingNotifyHours) fastingNotifyId(hours),
       ];
     }
-    return [_idAbstinenceHalf, _idAbstinenceTen, _idAbstinenceDone];
+    return [
+      _idAbstinenceHalf,
+      _idAbstinenceTen,
+      _idAbstinenceDone,
+      for (final mark in abstinenceNotifyMarks) abstinenceNotifyId(mark.from),
+    ];
   }
 
   NotificationDetails _details(String body) {

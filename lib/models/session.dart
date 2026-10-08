@@ -45,14 +45,8 @@ class TrackingSession {
     return elapsed >= targetDuration!;
   }
 
-  /// 종료 시 상태. 단식은 시간 기록이므로 항상 완료.
-  /// 금욕은 자유 모드·목표 달성 = 성공, 미달 = 실패.
-  SessionStatus get endStatus {
-    if (type == SessionType.fasting || isOpenEnded || isTargetReached) {
-      return SessionStatus.completed;
-    }
-    return SessionStatus.failed;
-  }
+  /// 종료 시 상태. 단식·금욕은 지난 시간 기록이므로 항상 완료.
+  SessionStatus get endStatus => SessionStatus.completed;
 
   TrackingSession copyWith({
     String? id,
@@ -128,26 +122,3 @@ class MasturbationLog {
   }
 }
 
-/// 프리셋 시간 옵션
-class DurationPreset {
-  final String label;
-  final Duration? duration; // null = 시간 지정 없음
-  final String description;
-
-  const DurationPreset({
-    required this.label,
-    required this.duration,
-    required this.description,
-  });
-}
-
-const abstinencePresets = [
-  DurationPreset(label: '1일', duration: Duration(days: 1), description: '하루 도전'),
-  DurationPreset(label: '3일', duration: Duration(days: 3), description: '주말 챌린지'),
-  DurationPreset(label: '7일', duration: Duration(days: 7), description: '일주일'),
-  DurationPreset(label: '14일', duration: Duration(days: 14), description: '2주 챌린지'),
-  DurationPreset(label: '30일', duration: Duration(days: 30), description: '한 달 금욕'),
-  DurationPreset(label: '60일', duration: Duration(days: 60), description: '2개월'),
-  DurationPreset(label: '90일', duration: Duration(days: 90), description: '리부트'),
-  DurationPreset(label: '자유', duration: null, description: '목표 없이 시작'),
-];

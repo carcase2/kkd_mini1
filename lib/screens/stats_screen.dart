@@ -64,16 +64,17 @@ class StatsScreen extends StatelessWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _FastingMarks(
+                child: _ReachMarks(
                   total: state.fastingTotal,
-                  counts: {
-                    12: state.fastingReachedHours(12),
-                    16: state.fastingReachedHours(16),
-                    24: state.fastingReachedHours(24),
-                    36: state.fastingReachedHours(36),
-                    48: state.fastingReachedHours(48),
-                    72: state.fastingReachedHours(72),
-                  },
+                  title: '도달한 시간',
+                  emptyLabel: '단식 기록이 없어요',
+                  rows: [
+                    for (final hours in [12, 16, 24, 36, 48, 72])
+                      (
+                        label: '$hours시간+',
+                        count: state.fastingReachedHours(hours),
+                      ),
+                  ],
                   color: AppColors.fasting,
                 ),
               ),
@@ -143,11 +144,18 @@ class StatsScreen extends StatelessWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _SuccessFailChart(
-                  success: state.abstinenceSuccess,
-                  failed: state.abstinenceFailed,
-                  color: AppColors.abstinence,
+                child: _ReachMarks(
+                  total: state.abstinenceTotal,
+                  title: '도달한 기간',
                   emptyLabel: '금욕 기록이 없어요',
+                  rows: [
+                    for (final days in [1, 3, 7, 14, 30, 90])
+                      (
+                        label: '$days일+',
+                        count: state.abstinenceReachedDays(days),
+                      ),
+                  ],
+                  color: AppColors.abstinence,
                 ),
               ),
             ),
@@ -158,18 +166,20 @@ class StatsScreen extends StatelessWidget {
                 child: StatCardGrid(
                   cards: [
                     StatCard(
-                      label: '총 시도',
+                      label: '총 횟수',
                       value: '${state.abstinenceTotal}회',
                       icon: Icons.flag_outlined,
                       color: AppColors.abstinence,
                       softColor: AppColors.abstinenceSoft,
                     ),
                     StatCard(
-                      label: '성공률',
-                      value: formatPercent(state.abstinenceSuccessRate),
-                      icon: Icons.trending_up_rounded,
-                      color: AppColors.success,
-                      softColor: AppColors.successSoft,
+                      label: '평균',
+                      value: state.abstinenceTotal == 0
+                          ? '-'
+                          : formatDurationTiny(state.abstinenceAverage),
+                      icon: Icons.timelapse_rounded,
+                      color: AppColors.abstinence,
+                      softColor: AppColors.abstinenceSoft,
                     ),
                     StatCard(
                       label: '총 유지 시간',
@@ -188,6 +198,21 @@ class StatsScreen extends StatelessWidget {
                 ),
               ),
             ),
+            if (state.abstinenceHistory.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                  child: _RecentBars(
+                    sessions: state.abstinenceHistory
+                        .take(7)
+                        .toList()
+                        .reversed
+                        .toList(),
+                    color: AppColors.abstinence,
+                    title: '최근 금욕 시간',
+                  ),
+                ),
+              ),
             if (state.activeAbstinence != null)
               SliverToBoxAdapter(
                 child: Padding(
@@ -428,20 +453,23 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _FastingMarks extends StatelessWidget {
+class _ReachMarks extends StatelessWidget {
   final int total;
-  final Map<int, int> counts;
+  final String title;
+  final String emptyLabel;
+  final List<({String label, int count})> rows;
   final Color color;
 
-  const _FastingMarks({
+  const _ReachMarks({
     required this.total,
-    required this.counts,
+    required this.title,
+    required this.emptyLabel,
+    required this.rows,
     required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hours = counts.keys.toList()..sort();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -455,7 +483,7 @@ class _FastingMarks extends StatelessWidget {
               height: 72,
               child: Center(
                 child: Text(
-                  '단식 기록이 없어요',
+                  emptyLabel,
                   style: TextStyle(color: AppColors.textMuted),
                 ),
               ),
@@ -463,19 +491,22 @@ class _FastingMarks extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '도달한 시간',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 12),
-                for (final hour in hours) ...[
+                for (var i = 0; i < rows.length; i++) ...[
                   _MarkRow(
-                    label: '$hour시간+',
-                    count: counts[hour] ?? 0,
+                    label: rows[i].label,
+                    count: rows[i].count,
                     total: total,
                     color: color,
                   ),
-                  if (hour != hours.last) const SizedBox(height: 10),
+                  if (i != rows.length - 1) const SizedBox(height: 10),
                 ],
               ],
             ),
@@ -530,150 +561,6 @@ class _MarkRow extends StatelessWidget {
             '$count회',
             textAlign: TextAlign.right,
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SuccessFailChart extends StatelessWidget {
-  final int success;
-  final int failed;
-  final Color color;
-  final String emptyLabel;
-
-  const _SuccessFailChart({
-    required this.success,
-    required this.failed,
-    required this.color,
-    required this.emptyLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final total = success + failed;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: total == 0
-          ? SizedBox(
-              height: 128,
-              child: Center(
-                child: Text(
-                  emptyLabel,
-                  style: TextStyle(color: AppColors.textMuted),
-                ),
-              ),
-            )
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Center(
-                  child: SizedBox(
-                    height: 120,
-                    width: 120,
-                    child: PieChart(
-                      PieChartData(
-                        sectionsSpace: 3,
-                        centerSpaceRadius: 34,
-                        sections: [
-                          PieChartSectionData(
-                            value: success.toDouble(),
-                            color: AppColors.success,
-                            title: '',
-                            radius: 26,
-                            showTitle: false,
-                          ),
-                          PieChartSectionData(
-                            value: failed.toDouble(),
-                            color: AppColors.danger,
-                            title: '',
-                            radius: 26,
-                            showTitle: false,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _Legend(
-                  color: AppColors.success,
-                  label: '성공',
-                  value: '$success회',
-                ),
-                const SizedBox(height: 10),
-                _Legend(
-                  color: AppColors.danger,
-                  label: '실패',
-                  value: '$failed회',
-                ),
-                const SizedBox(height: 10),
-                _Legend(
-                  color: color,
-                  label: '성공률',
-                  value: formatPercent(
-                    total == 0 ? 0 : success / total,
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-}
-
-class _Legend extends StatelessWidget {
-  final Color color;
-  final String label;
-  final String value;
-
-  const _Legend({
-    required this.color,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.right,
           ),
         ),
       ],
