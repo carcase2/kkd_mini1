@@ -34,201 +34,209 @@ class ReadingScreen extends StatelessWidget {
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: c.readingSoft,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.menu_book_rounded,
-                              color: c.reading,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '독서',
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w900,
-                                    color: c.textPrimary,
-                                  ),
-                                ),
-                                Text(
-                                  '시작 → 읽기 → 종료, 끝!',
-                                  style: TextStyle(
-                                    color: c.textSecondary,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '하루 목표',
-                            onPressed: () => _editDailyGoal(context),
-                            icon: Icon(
-                              Icons.flag_outlined,
-                              color: c.textSecondary,
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '책 추가',
-                            onPressed: () => _showBookEditor(context),
-                            icon: Icon(Icons.add_rounded, color: c.reading),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // 오늘 목표 진행
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                      child: _TodayGoalCard(state: state, colors: c),
-                    ),
-                  ),
-
-                  // 활성 타이머 또는 안내
-                  if (active != null)
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                        child: _ActiveReadingCard(
-                          state: state,
-                          log: active,
-                          colors: c,
-                        ),
-                      ),
-                    )
-                  else if (books.isEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-                        child: _EmptyBooks(
-                          colors: c,
-                          onAdd: () => _showBookEditor(context),
-                        ),
-                      ),
-                    )
-                  else
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                        child: _QuickStartHint(
-                          colors: c,
-                          lastBook: selected,
-                          bookCount: books.length,
-                        ),
-                      ),
-                    ),
-
-                  // 통계 칩
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                      child: StatsRow(
-                        chips: [
-                          QuickStatChip(
-                            label: '연속',
-                            value: '${state.readingStreak}일',
-                            color: c.reading,
-                          ),
-                          QuickStatChip(
-                            label: '이번 주',
-                            value: formatDurationTiny(state.readingThisWeek),
-                            color: c.success,
-                          ),
-                          QuickStatChip(
-                            label: '총 시간',
-                            value: formatDurationTiny(state.readingTotalTime),
-                            color: c.warning,
-                          ),
-                          QuickStatChip(
-                            label: '완독',
-                            value: '${state.booksCompletedCount}',
-                            color: c.abstinence,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // 달력
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                      child: _ReadingCalendar(
-                        minutesByDay: state.readingMinutesByDay,
-                        colors: c,
-                      ),
-                    ),
-                  ),
-
-                  // 내 책장
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                      child: Row(
-                        children: [
-                          Text(
-                            '내 책장',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: c.textPrimary,
-                            ),
-                          ),
-                          const Spacer(),
-                          if (active == null && books.isNotEmpty)
-                            Text(
-                              '탭하면 바로 시작',
-                              style: TextStyle(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: c.readingSoft,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.menu_book_rounded,
                                 color: c.reading,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${books.length}권',
-                            style: TextStyle(
-                              color: c.textMuted,
-                              fontSize: 13,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '독서',
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w900,
+                                      color: c.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    '시작 → 읽기 → 종료, 끝!',
+                                    style: TextStyle(
+                                      color: c.textSecondary,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                            IconButton(
+                              tooltip: '하루 목표',
+                              onPressed: () => _editDailyGoal(context),
+                              icon: Icon(
+                                Icons.flag_outlined,
+                                color: c.textSecondary,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: '책 추가',
+                              onPressed: () => _showBookEditor(context),
+                              style: IconButton.styleFrom(
+                                backgroundColor: c.reading.withValues(
+                                  alpha: 0.12,
+                                ),
+                                foregroundColor: c.reading,
+                              ),
+                              icon: const Icon(Icons.add_rounded),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
 
-                  if (books.isEmpty)
+                    // 오늘 목표 진행
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                        child: Text(
-                          '책을 등록하고 읽기 시작해보세요.',
-                          style: TextStyle(color: c.textMuted, fontSize: 13),
+                        child: _TodayGoalCard(state: state, colors: c),
+                      ),
+                    ),
+
+                    // 활성 타이머 또는 안내
+                    if (active != null)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                          child: _ActiveReadingCard(
+                            state: state,
+                            log: active,
+                            colors: c,
+                          ),
+                        ),
+                      )
+                    else if (books.isEmpty)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+                          child: _EmptyBooks(
+                            colors: c,
+                            onAdd: () => _showBookEditor(context),
+                          ),
+                        ),
+                      )
+                    else
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                          child: _QuickStartHint(
+                            colors: c,
+                            lastBook: selected,
+                            bookCount: books.length,
+                          ),
                         ),
                       ),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
+
+                    // 통계 칩
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                        child: StatsRow(
+                          chips: [
+                            QuickStatChip(
+                              label: '연속',
+                              value: '${state.readingStreak}일',
+                              color: c.reading,
+                            ),
+                            QuickStatChip(
+                              label: '이번 주',
+                              value: formatDurationTiny(state.readingThisWeek),
+                              color: c.success,
+                            ),
+                            QuickStatChip(
+                              label: '총 시간',
+                              value: formatDurationTiny(state.readingTotalTime),
+                              color: c.warning,
+                            ),
+                            QuickStatChip(
+                              label: '완독',
+                              value: '${state.booksCompletedCount}',
+                              color: c.abstinence,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // 달력
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                        child: _ReadingCalendar(
+                          minutesByDay: state.readingMinutesByDay,
+                          colors: c,
+                        ),
+                      ),
+                    ),
+
+                    // 내 책장
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                        child: Row(
+                          children: [
+                            Text(
+                              '내 책장',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: c.textPrimary,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (active == null && books.isNotEmpty)
+                              Text(
+                                '탭하면 바로 시작',
+                                style: TextStyle(
+                                  color: c.reading,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${books.length}권',
+                              style: TextStyle(
+                                color: c.textMuted,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    if (books.isEmpty)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                          child: Text(
+                            '책을 등록하고 읽기 시작해보세요.',
+                            style: TextStyle(color: c.textMuted, fontSize: 13),
+                          ),
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
                             final book = books[index];
                             final selectedId = state.selectedBookId;
                             final isActiveBook =
@@ -239,14 +247,15 @@ class ReadingScreen extends StatelessWidget {
                                 book: book,
                                 state: state,
                                 colors: c,
-                                isSelected: book.id == selectedId || isActiveBook,
+                                isSelected:
+                                    book.id == selectedId || isActiveBook,
                                 isReadingNow: isActiveBook,
                                 onSelect: () {
                                   if (active != null) {
                                     // 진행 중에는 선택만
-                                    context
-                                        .read<AppState>()
-                                        .setSelectedBookId(book.id);
+                                    context.read<AppState>().setSelectedBookId(
+                                      book.id,
+                                    );
                                     return;
                                   }
                                   // 탭 = 그 책으로 바로 시작
@@ -254,91 +263,87 @@ class ReadingScreen extends StatelessWidget {
                                 },
                                 onEdit: () =>
                                     _showBookEditor(context, book: book),
-                                onDelete: () =>
-                                    _deleteBook(context, book),
+                                onDelete: () => _deleteBook(context, book),
                               ),
                             );
-                          },
-                          childCount: books.length,
+                          }, childCount: books.length),
                         ),
                       ),
-                    ),
 
-                  // 최근 기록
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                      child: Row(
-                        children: [
-                          Text(
-                            '최근 기록',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: c.textPrimary,
-                            ),
-                          ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: () => _showManualLog(context),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(0, 32),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: Text(
-                              '수동 기록',
-                              style: TextStyle(
-                                color: c.reading,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  if (state.completedReadingLogs.isEmpty)
+                    // 최근 기록
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-                        child: Center(
-                          child: Text(
-                            '아직 독서 기록이 없어요.',
-                            style: TextStyle(color: c.textMuted),
-                          ),
-                        ),
-                      ),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final log = state.completedReadingLogs[index];
-                            final book = state.bookById(log.bookId);
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: _ReadingLogTile(
-                                log: log,
-                                bookTitle: book?.title ?? '삭제된 책',
-                                colors: c,
-                                onDelete: () =>
-                                    _deleteLog(context, log.id),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                        child: Row(
+                          children: [
+                            Text(
+                              '최근 기록',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: c.textPrimary,
                               ),
-                            );
-                          },
-                          childCount: state.completedReadingLogs.length.clamp(
-                            0,
-                            30,
-                          ),
+                            ),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: () => _showManualLog(context),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(0, 32),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: Text(
+                                '수동 기록',
+                                style: TextStyle(
+                                  color: c.reading,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                ],
+
+                    if (state.completedReadingLogs.isEmpty)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                          child: Center(
+                            child: Text(
+                              '아직 독서 기록이 없어요.',
+                              style: TextStyle(color: c.textMuted),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final log = state.completedReadingLogs[index];
+                              final book = state.bookById(log.bookId);
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: _ReadingLogTile(
+                                  log: log,
+                                  bookTitle: book?.title ?? '삭제된 책',
+                                  colors: c,
+                                  onDelete: () => _deleteLog(context, log.id),
+                                ),
+                              );
+                            },
+                            childCount: state.completedReadingLogs.length.clamp(
+                              0,
+                              30,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -416,16 +421,13 @@ class ReadingScreen extends StatelessWidget {
     }
   }
 
-  Future<void> _startReading(
-    BuildContext context, {
-    String? bookId,
-  }) async {
+  Future<void> _startReading(BuildContext context, {String? bookId}) async {
     HapticFeedback.mediumImpact();
     await context.read<AppState>().startReading(bookId: bookId);
     if (context.mounted) {
       final book = context.read<AppState>().bookById(
-            bookId ?? context.read<AppState>().selectedBookId ?? '',
-          );
+        bookId ?? context.read<AppState>().selectedBookId ?? '',
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -522,9 +524,7 @@ class ReadingScreen extends StatelessWidget {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '독서 ${formatDuration(elapsed, short: true)} 기록했어요 📖',
-          ),
+          content: Text('독서 ${formatDuration(elapsed, short: true)} 기록했어요 📖'),
         ),
       );
     }
@@ -577,9 +577,7 @@ class ReadingScreen extends StatelessWidget {
     final books = state.sortedBooks;
     if (books.isEmpty) {
       await _showBookEditor(context);
-      return context.mounted
-          ? context.read<AppState>().selectedBookId
-          : null;
+      return context.mounted ? context.read<AppState>().selectedBookId : null;
     }
     final c = AppPalette.of(context);
     return showModalBottomSheet<String>(
@@ -665,8 +663,7 @@ class ReadingScreen extends StatelessWidget {
                     title: Text(
                       b.title,
                       style: TextStyle(
-                        fontWeight:
-                            isSel ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight: isSel ? FontWeight.w800 : FontWeight.w600,
                       ),
                     ),
                     subtitle: Text(
@@ -678,8 +675,8 @@ class ReadingScreen extends StatelessWidget {
                     trailing: startOnSelect
                         ? Icon(Icons.chevron_right_rounded, color: c.reading)
                         : (isSel
-                            ? Icon(Icons.check_circle, color: c.reading)
-                            : null),
+                              ? Icon(Icons.check_circle, color: c.reading)
+                              : null),
                     onTap: () => Navigator.pop(ctx, b.id),
                   );
                 },
@@ -864,9 +861,9 @@ class ReadingScreen extends StatelessWidget {
   Future<void> _showManualLog(BuildContext context) async {
     final state = context.read<AppState>();
     if (state.books.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('먼저 책을 등록해주세요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('먼저 책을 등록해주세요')));
       return;
     }
     final c = AppPalette.of(context);
@@ -1018,9 +1015,9 @@ class ReadingScreen extends StatelessWidget {
     if (saved != true || !context.mounted) return;
     final minutes = int.tryParse(minutesCtrl.text) ?? 0;
     if (minutes <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('읽은 시간(분)을 입력해주세요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('읽은 시간(분)을 입력해주세요')));
       return;
     }
     await state.logReadingManual(
@@ -1030,9 +1027,9 @@ class ReadingScreen extends StatelessWidget {
       note: noteCtrl.text,
     );
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('독서 기록을 저장했어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('독서 기록을 저장했어요')));
     }
   }
 }
@@ -1054,10 +1051,7 @@ class _TodayGoalCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            colors.reading.withValues(alpha: 0.18),
-            colors.readingSoft,
-          ],
+          colors: [colors.reading.withValues(alpha: 0.18), colors.readingSoft],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -1259,7 +1253,6 @@ class _EmptyBooks extends StatelessWidget {
   }
 }
 
-
 class _QuickStartHint extends StatelessWidget {
   final AppPalette colors;
   final Book? lastBook;
@@ -1276,8 +1269,8 @@ class _QuickStartHint extends StatelessWidget {
     final subtitle = lastBook != null
         ? '최근 「${lastBook!.title}」 · 아래 책을 탭하거나 시작 버튼'
         : bookCount == 1
-            ? '아래 시작 버튼 한 번이면 바로 읽어요'
-            : '시작 버튼 → 책 고르면 바로 타이머 시작';
+        ? '아래 시작 버튼 한 번이면 바로 읽어요'
+        : '시작 버튼 → 책 고르면 바로 타이머 시작';
 
     return Container(
       width: double.infinity,
@@ -1296,7 +1289,11 @@ class _QuickStartHint extends StatelessWidget {
               color: colors.surface,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.play_arrow_rounded, color: colors.reading, size: 28),
+            child: Icon(
+              Icons.play_arrow_rounded,
+              color: colors.reading,
+              size: 28,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1333,10 +1330,7 @@ class _ReadingCalendar extends StatelessWidget {
   final Map<DateTime, int> minutesByDay;
   final AppPalette colors;
 
-  const _ReadingCalendar({
-    required this.minutesByDay,
-    required this.colors,
-  });
+  const _ReadingCalendar({required this.minutesByDay, required this.colors});
 
   @override
   Widget build(BuildContext context) {
@@ -1363,8 +1357,11 @@ class _ReadingCalendar extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.calendar_month_rounded,
-                  size: 18, color: colors.reading),
+              Icon(
+                Icons.calendar_month_rounded,
+                size: 18,
+                color: colors.reading,
+              ),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
@@ -1428,7 +1425,7 @@ class _ReadingCalendar extends StatelessWidget {
                           }
                           final day = DateTime(now.year, now.month, dayNum);
                           final mins = minutesByDay[day] ?? 0;
-                                                    final isToday = dayNum == now.day;
+                          final isToday = dayNum == now.day;
                           final intensity = maxMin <= 0
                               ? 0.0
                               : (mins / maxMin).clamp(0.0, 1.0);
@@ -1437,7 +1434,8 @@ class _ReadingCalendar extends StatelessWidget {
                           if (mins <= 0) {
                             bg = colors.chipBg;
                           } else {
-                            bg = Color.lerp(
+                            bg =
+                                Color.lerp(
                                   colors.readingSoft,
                                   colors.reading,
                                   0.25 + intensity * 0.75,
@@ -1552,8 +1550,8 @@ class _BookTile extends StatelessWidget {
                   isReadingNow
                       ? Icons.play_arrow_rounded
                       : book.status == BookStatus.completed
-                          ? Icons.verified_rounded
-                          : Icons.menu_book_outlined,
+                      ? Icons.verified_rounded
+                      : Icons.menu_book_outlined,
                   color: isSelected || isReadingNow
                       ? colors.reading
                       : colors.textMuted,
@@ -1589,8 +1587,9 @@ class _BookTile extends StatelessWidget {
                         color: isReadingNow
                             ? colors.reading
                             : colors.textSecondary,
-                        fontWeight:
-                            isReadingNow ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight: isReadingNow
+                            ? FontWeight.w700
+                            : FontWeight.w500,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1609,14 +1608,16 @@ class _BookTile extends StatelessWidget {
                   if (v == 'edit') onEdit();
                   if (v == 'delete') onDelete();
                   if (v == 'complete') {
-                    context
-                        .read<AppState>()
-                        .setBookStatus(book.id, BookStatus.completed);
+                    context.read<AppState>().setBookStatus(
+                      book.id,
+                      BookStatus.completed,
+                    );
                   }
                   if (v == 'reading') {
-                    context
-                        .read<AppState>()
-                        .setBookStatus(book.id, BookStatus.reading);
+                    context.read<AppState>().setBookStatus(
+                      book.id,
+                      BookStatus.reading,
+                    );
                   }
                 },
                 itemBuilder: (_) => [
@@ -1627,10 +1628,7 @@ class _BookTile extends StatelessWidget {
                       child: Text('완독 처리'),
                     ),
                   if (book.status == BookStatus.completed)
-                    const PopupMenuItem(
-                      value: 'reading',
-                      child: Text('다시 읽기'),
-                    ),
+                    const PopupMenuItem(value: 'reading', child: Text('다시 읽기')),
                   const PopupMenuItem(value: 'delete', child: Text('삭제')),
                 ],
               ),

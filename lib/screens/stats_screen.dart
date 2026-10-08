@@ -18,404 +18,425 @@ class StatsScreen extends StatelessWidget {
     final c = AppPalette.of(context);
 
     return Scaffold(
+      backgroundColor: c.bg,
       body: SafeArea(
         child: CloudRefresh(
           color: c.success,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '통계',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      '한눈에 보는 나의 루틴',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // 단식 섹션
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: _SectionHeader(
-                  title: '단식',
-                  icon: Icons.restaurant_outlined,
-                  color: AppColors.fasting,
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _ReachMarks(
-                  total: state.fastingTotal,
-                  title: '도달한 시간',
-                  emptyLabel: '단식 기록이 없어요',
-                  rows: [
-                    for (final hours in [12, 16, 24, 36, 48, 72])
-                      (
-                        label: '$hours시간+',
-                        count: state.fastingReachedHours(hours),
-                      ),
-                  ],
-                  color: AppColors.fasting,
-                ),
-              ),
-            ),
-            /* 단식 통계 카드 */
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                child: StatCardGrid(
-                  cards: [
-                    StatCard(
-                      label: '총 횟수',
-                      value: '${state.fastingTotal}회',
-                      icon: Icons.flag_outlined,
-                      color: AppColors.fasting,
-                      softColor: AppColors.fastingSoft,
-                    ),
-                    StatCard(
-                      label: '평균',
-                      value: state.fastingTotal == 0
-                          ? '-'
-                          : formatDurationTiny(state.fastingAverage),
-                      icon: Icons.timelapse_rounded,
-                      color: AppColors.fasting,
-                      softColor: AppColors.fastingSoft,
-                    ),
-                    StatCard(
-                      label: '총 단식 시간',
-                      value: formatDurationTiny(state.fastingTotalTime),
-                      icon: Icons.schedule_rounded,
-                      color: AppColors.fasting,
-                      softColor: AppColors.fastingSoft,
-                    ),
-                    StatCard(
-                      label: '최장 단식',
-                      value: formatDurationTiny(state.fastingLongest),
-                      icon: Icons.emoji_events_outlined,
-                      color: AppColors.warning,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (state.fastingHistory.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                  child: _RecentBars(
-                    sessions: state.fastingHistory.take(7).toList().reversed.toList(),
-                    color: AppColors.fasting,
-                    title: '최근 단식 시간',
-                  ),
-                ),
-              ),
-
-            // 금욕 섹션
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-                child: _SectionHeader(
-                  title: '금욕',
-                  icon: Icons.shield_outlined,
-                  color: AppColors.abstinence,
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _ReachMarks(
-                  total: state.abstinenceTotal,
-                  title: '도달한 기간',
-                  emptyLabel: '금욕 기록이 없어요',
-                  rows: [
-                    for (final days in [1, 3, 7, 14, 30, 90])
-                      (
-                        label: '$days일+',
-                        count: state.abstinenceReachedDays(days),
-                      ),
-                  ],
-                  color: AppColors.abstinence,
-                ),
-              ),
-            ),
-            /* 금욕 통계 카드 */
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                child: StatCardGrid(
-                  cards: [
-                    StatCard(
-                      label: '총 횟수',
-                      value: '${state.abstinenceTotal}회',
-                      icon: Icons.flag_outlined,
-                      color: AppColors.abstinence,
-                      softColor: AppColors.abstinenceSoft,
-                    ),
-                    StatCard(
-                      label: '평균',
-                      value: state.abstinenceTotal == 0
-                          ? '-'
-                          : formatDurationTiny(state.abstinenceAverage),
-                      icon: Icons.timelapse_rounded,
-                      color: AppColors.abstinence,
-                      softColor: AppColors.abstinenceSoft,
-                    ),
-                    StatCard(
-                      label: '총 유지 시간',
-                      value: formatDurationTiny(state.abstinenceTotalTime),
-                      icon: Icons.schedule_rounded,
-                      color: AppColors.abstinence,
-                      softColor: AppColors.abstinenceSoft,
-                    ),
-                    StatCard(
-                      label: '최장 유지',
-                      value: formatDurationTiny(state.abstinenceLongest),
-                      icon: Icons.emoji_events_outlined,
-                      color: AppColors.warning,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (state.abstinenceHistory.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                  child: _RecentBars(
-                    sessions: state.abstinenceHistory
-                        .take(7)
-                        .toList()
-                        .reversed
-                        .toList(),
-                    color: AppColors.abstinence,
-                    title: '최근 금욕 시간',
-                  ),
-                ),
-              ),
-            if (state.activeAbstinence != null)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.abstinenceSoft,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.abstinence.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.timer_outlined,
-                            color: AppColors.abstinence),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '현재 금욕 스트릭',
-                                style: TextStyle(
-                                  color: AppColors.abstinence,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              Text(
-                                formatDuration(
-                                  state.activeAbstinence!.elapsed,
-                                  short: true,
-                                ),
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: c.successSoft,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ],
-                    ),
+                        child: Icon(Icons.insights_rounded, color: c.success),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '통계',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: c.textPrimary,
+                              ),
+                            ),
+                            Text(
+                              '한눈에 보는 나의 루틴',
+                              style: TextStyle(
+                                color: c.textSecondary,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
 
-            // 독서 섹션
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-                child: _SectionHeader(
-                  title: '독서',
-                  icon: Icons.menu_book_rounded,
-                  color: AppColors.reading,
+              // 단식 섹션
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: _SectionHeader(
+                    title: '단식',
+                    icon: Icons.restaurant_outlined,
+                    color: AppColors.fasting,
+                  ),
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: StatCardGrid(
-                  cards: [
-                    StatCard(
-                      label: '연속 일수',
-                      value: '${state.readingStreak}일',
-                      icon: Icons.local_fire_department_rounded,
-                      color: AppColors.reading,
-                      softColor: AppColors.readingSoft,
-                    ),
-                    StatCard(
-                      label: '오늘',
-                      value: formatDurationTiny(state.readingToday),
-                      icon: Icons.today_rounded,
-                      color: AppColors.success,
-                      softColor: AppColors.successSoft,
-                    ),
-                    StatCard(
-                      label: '이번 주',
-                      value: formatDurationTiny(state.readingThisWeek),
-                      icon: Icons.date_range_rounded,
-                      color: AppColors.reading,
-                      softColor: AppColors.readingSoft,
-                    ),
-                    StatCard(
-                      label: '이번 달',
-                      value: formatDurationTiny(state.readingThisMonth),
-                      icon: Icons.calendar_month_rounded,
-                      color: AppColors.warning,
-                    ),
-                  ],
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _ReachMarks(
+                    total: state.fastingTotal,
+                    title: '도달한 시간',
+                    emptyLabel: '단식 기록이 없어요',
+                    rows: [
+                      for (final hours in [12, 16, 24, 36, 48, 72])
+                        (
+                          label: '$hours시간+',
+                          count: state.fastingReachedHours(hours),
+                        ),
+                    ],
+                    color: AppColors.fasting,
+                  ),
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: StatCardGrid(
-                  cards: [
-                    StatCard(
-                      label: '총 독서 시간',
-                      value: formatDurationTiny(state.readingTotalTime),
-                      icon: Icons.schedule_rounded,
-                      color: AppColors.reading,
-                      softColor: AppColors.readingSoft,
-                    ),
-                    StatCard(
-                      label: '세션',
-                      value: '${state.readingSessionCount}회',
-                      icon: Icons.history_rounded,
-                      color: AppColors.abstinence,
-                      softColor: AppColors.abstinenceSoft,
-                    ),
-                    StatCard(
-                      label: '읽는 중',
-                      value: '${state.booksReadingCount}권',
-                      icon: Icons.menu_book_outlined,
-                      color: AppColors.success,
-                      softColor: AppColors.successSoft,
-                    ),
-                    StatCard(
-                      label: '완독',
-                      value: '${state.booksCompletedCount}권',
-                      icon: Icons.emoji_events_outlined,
-                      color: AppColors.warning,
-                    ),
-                  ],
+              /* 단식 통계 카드 */
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                  child: StatCardGrid(
+                    cards: [
+                      StatCard(
+                        label: '총 횟수',
+                        value: '${state.fastingTotal}회',
+                        icon: Icons.flag_outlined,
+                        color: AppColors.fasting,
+                        softColor: AppColors.fastingSoft,
+                      ),
+                      StatCard(
+                        label: '평균',
+                        value: state.fastingTotal == 0
+                            ? '-'
+                            : formatDurationTiny(state.fastingAverage),
+                        icon: Icons.timelapse_rounded,
+                        color: AppColors.fasting,
+                        softColor: AppColors.fastingSoft,
+                      ),
+                      StatCard(
+                        label: '총 단식 시간',
+                        value: formatDurationTiny(state.fastingTotalTime),
+                        icon: Icons.schedule_rounded,
+                        color: AppColors.fasting,
+                        softColor: AppColors.fastingSoft,
+                      ),
+                      StatCard(
+                        label: '최장 단식',
+                        value: formatDurationTiny(state.fastingLongest),
+                        icon: Icons.emoji_events_outlined,
+                        color: AppColors.warning,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                child: _ReadingWeekChart(
-                  minutesByDay: state.readingMinutesByDay,
+              if (state.fastingHistory.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                    child: _RecentBars(
+                      sessions: state.fastingHistory
+                          .take(7)
+                          .toList()
+                          .reversed
+                          .toList(),
+                      color: AppColors.fasting,
+                      title: '최근 단식 시간',
+                    ),
+                  ),
                 ),
-              ),
-            ),
 
-            // 체크 섹션
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-                child: _SectionHeader(
-                  title: '체크',
-                  icon: Icons.favorite_rounded,
-                  color: AppColors.check,
+              // 금욕 섹션
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+                  child: _SectionHeader(
+                    title: '금욕',
+                    icon: Icons.shield_outlined,
+                    color: AppColors.abstinence,
+                  ),
                 ),
               ),
-            ),
-            /* 체크 통계 카드 */
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: StatCardGrid(
-                  cards: [
-                    StatCard(
-                      label: '이번 주',
-                      value: '${state.masturbationThisWeek}회',
-                      icon: Icons.date_range_rounded,
-                      color: AppColors.check,
-                      softColor: AppColors.checkSoft,
-                    ),
-                    StatCard(
-                      label: '이번 달',
-                      value: '${state.masturbationThisMonth}회',
-                      icon: Icons.calendar_month_rounded,
-                      color: AppColors.warning,
-                    ),
-                    StatCard(
-                      label: '전체 기록',
-                      value: '${state.masturbationTotal}회',
-                      icon: Icons.list_alt_rounded,
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _ReachMarks(
+                    total: state.abstinenceTotal,
+                    title: '도달한 기간',
+                    emptyLabel: '금욕 기록이 없어요',
+                    rows: [
+                      for (final days in [1, 3, 7, 14, 30, 90])
+                        (
+                          label: '$days일+',
+                          count: state.abstinenceReachedDays(days),
+                        ),
+                    ],
+                    color: AppColors.abstinence,
+                  ),
+                ),
+              ),
+              /* 금욕 통계 카드 */
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                  child: StatCardGrid(
+                    cards: [
+                      StatCard(
+                        label: '총 횟수',
+                        value: '${state.abstinenceTotal}회',
+                        icon: Icons.flag_outlined,
+                        color: AppColors.abstinence,
+                        softColor: AppColors.abstinenceSoft,
+                      ),
+                      StatCard(
+                        label: '평균',
+                        value: state.abstinenceTotal == 0
+                            ? '-'
+                            : formatDurationTiny(state.abstinenceAverage),
+                        icon: Icons.timelapse_rounded,
+                        color: AppColors.abstinence,
+                        softColor: AppColors.abstinenceSoft,
+                      ),
+                      StatCard(
+                        label: '총 유지 시간',
+                        value: formatDurationTiny(state.abstinenceTotalTime),
+                        icon: Icons.schedule_rounded,
+                        color: AppColors.abstinence,
+                        softColor: AppColors.abstinenceSoft,
+                      ),
+                      StatCard(
+                        label: '최장 유지',
+                        value: formatDurationTiny(state.abstinenceLongest),
+                        icon: Icons.emoji_events_outlined,
+                        color: AppColors.warning,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (state.abstinenceHistory.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                    child: _RecentBars(
+                      sessions: state.abstinenceHistory
+                          .take(7)
+                          .toList()
+                          .reversed
+                          .toList(),
                       color: AppColors.abstinence,
-                      softColor: AppColors.abstinenceSoft,
+                      title: '최근 금욕 시간',
                     ),
-                    StatCard(
-                      label: '마지막 이후',
-                      value: state.lastMasturbation == null
-                          ? '-'
-                          : formatDurationTiny(
-                              state.timeSinceLastMasturbation,
+                  ),
+                ),
+              if (state.activeAbstinence != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.abstinenceSoft,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.abstinence.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.timer_outlined,
+                            color: AppColors.abstinence,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '현재 금욕 스트릭',
+                                  style: TextStyle(
+                                    color: AppColors.abstinence,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  formatDuration(
+                                    state.activeAbstinence!.elapsed,
+                                    short: true,
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ),
-                      icon: Icons.hourglass_empty_rounded,
-                      color: AppColors.success,
-                      softColor: AppColors.successSoft,
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
+                  ),
+                ),
+
+              // 독서 섹션
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+                  child: _SectionHeader(
+                    title: '독서',
+                    icon: Icons.menu_book_rounded,
+                    color: AppColors.reading,
+                  ),
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-                child: _MasturbationWeekChart(
-                  byDay: state.masturbationByDay,
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: StatCardGrid(
+                    cards: [
+                      StatCard(
+                        label: '연속 일수',
+                        value: '${state.readingStreak}일',
+                        icon: Icons.local_fire_department_rounded,
+                        color: AppColors.reading,
+                        softColor: AppColors.readingSoft,
+                      ),
+                      StatCard(
+                        label: '오늘',
+                        value: formatDurationTiny(state.readingToday),
+                        icon: Icons.today_rounded,
+                        color: AppColors.success,
+                        softColor: AppColors.successSoft,
+                      ),
+                      StatCard(
+                        label: '이번 주',
+                        value: formatDurationTiny(state.readingThisWeek),
+                        icon: Icons.date_range_rounded,
+                        color: AppColors.reading,
+                        softColor: AppColors.readingSoft,
+                      ),
+                      StatCard(
+                        label: '이번 달',
+                        value: formatDurationTiny(state.readingThisMonth),
+                        icon: Icons.calendar_month_rounded,
+                        color: AppColors.warning,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: StatCardGrid(
+                    cards: [
+                      StatCard(
+                        label: '총 독서 시간',
+                        value: formatDurationTiny(state.readingTotalTime),
+                        icon: Icons.schedule_rounded,
+                        color: AppColors.reading,
+                        softColor: AppColors.readingSoft,
+                      ),
+                      StatCard(
+                        label: '세션',
+                        value: '${state.readingSessionCount}회',
+                        icon: Icons.history_rounded,
+                        color: AppColors.abstinence,
+                        softColor: AppColors.abstinenceSoft,
+                      ),
+                      StatCard(
+                        label: '읽는 중',
+                        value: '${state.booksReadingCount}권',
+                        icon: Icons.menu_book_outlined,
+                        color: AppColors.success,
+                        softColor: AppColors.successSoft,
+                      ),
+                      StatCard(
+                        label: '완독',
+                        value: '${state.booksCompletedCount}권',
+                        icon: Icons.emoji_events_outlined,
+                        color: AppColors.warning,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                  child: _ReadingWeekChart(
+                    minutesByDay: state.readingMinutesByDay,
+                  ),
+                ),
+              ),
+
+              // 체크 섹션
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+                  child: _SectionHeader(
+                    title: '체크',
+                    icon: Icons.favorite_rounded,
+                    color: AppColors.check,
+                  ),
+                ),
+              ),
+              /* 체크 통계 카드 */
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: StatCardGrid(
+                    cards: [
+                      StatCard(
+                        label: '이번 주',
+                        value: '${state.masturbationThisWeek}회',
+                        icon: Icons.date_range_rounded,
+                        color: AppColors.check,
+                        softColor: AppColors.checkSoft,
+                      ),
+                      StatCard(
+                        label: '이번 달',
+                        value: '${state.masturbationThisMonth}회',
+                        icon: Icons.calendar_month_rounded,
+                        color: AppColors.warning,
+                      ),
+                      StatCard(
+                        label: '전체 기록',
+                        value: '${state.masturbationTotal}회',
+                        icon: Icons.list_alt_rounded,
+                        color: AppColors.abstinence,
+                        softColor: AppColors.abstinenceSoft,
+                      ),
+                      StatCard(
+                        label: '마지막 이후',
+                        value: state.lastMasturbation == null
+                            ? '-'
+                            : formatDurationTiny(
+                                state.timeSinceLastMasturbation,
+                              ),
+                        icon: Icons.hourglass_empty_rounded,
+                        color: AppColors.success,
+                        softColor: AppColors.successSoft,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                  child: _MasturbationWeekChart(byDay: state.masturbationByDay),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -693,8 +714,7 @@ class _ReadingWeekChart extends StatelessWidget {
       final d = today.subtract(Duration(days: 13 - i));
       return DateTime(d.year, d.month, d.day);
     });
-    final values =
-        days.map((d) => (minutesByDay[d] ?? 0).toDouble()).toList();
+    final values = days.map((d) => (minutesByDay[d] ?? 0).toDouble()).toList();
     final maxY = values.fold<double>(1, (a, b) => a > b ? a : b);
 
     return Container(

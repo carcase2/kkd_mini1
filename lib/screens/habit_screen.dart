@@ -40,10 +40,7 @@ class HabitScreen extends StatelessWidget {
                           color: c.habitSoft,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(
-                          Icons.checklist_rounded,
-                          color: c.habit,
-                        ),
+                        child: Icon(Icons.checklist_rounded, color: c.habit),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -99,10 +96,7 @@ class HabitScreen extends StatelessWidget {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [
-                            c.habit.withValues(alpha: 0.2),
-                            c.habitSoft,
-                          ],
+                          colors: [c.habit.withValues(alpha: 0.2), c.habitSoft],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -157,7 +151,8 @@ class HabitScreen extends StatelessWidget {
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final habit = habits[index];
-                      final showPausedHeader = !habit.active &&
+                      final showPausedHeader =
+                          !habit.active &&
                           (index == 0 || habits[index - 1].active);
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -272,19 +267,13 @@ class _EmptyState extends StatelessWidget {
           _ExampleButton(
             colors: colors,
             label: '순대국밥 먹기 · 일주일에 한 번',
-            onTap: () => _addExample(
-              context,
-              name: '순대국밥 먹기',
-            ),
+            onTap: () => _addExample(context, name: '순대국밥 먹기'),
           ),
           const SizedBox(height: 8),
           _ExampleButton(
             colors: colors,
             label: '편의점 음식 먹기 · 일주일에 한 번',
-            onTap: () => _addExample(
-              context,
-              name: '편의점 음식 먹기',
-            ),
+            onTap: () => _addExample(context, name: '편의점 음식 먹기'),
           ),
           const SizedBox(height: 8),
           TextButton(
@@ -302,21 +291,18 @@ class _EmptyState extends StatelessWidget {
     );
   }
 
-  Future<void> _addExample(
-    BuildContext context, {
-    required String name,
-  }) async {
+  Future<void> _addExample(BuildContext context, {required String name}) async {
     HapticFeedback.lightImpact();
     await context.read<AppState>().addHabit(
-          name: name,
-          timesPerPeriod: 1,
-          every: 1,
-          unit: HabitPeriodUnit.week,
-        );
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$name 항목을 추가했어요')),
+      name: name,
+      timesPerPeriod: 1,
+      every: 1,
+      unit: HabitPeriodUnit.week,
     );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$name 항목을 추가했어요')));
   }
 }
 
@@ -423,7 +409,7 @@ class _HabitCard extends StatelessWidget {
                   child: Icon(
                     met && habit.active
                         ? Icons.check_circle_rounded
-                        : Icons.restaurant_rounded,
+                        : Icons.checklist_rounded,
                     color: statusColor,
                     size: 22,
                   ),
@@ -498,10 +484,7 @@ class _HabitCard extends StatelessWidget {
                     const PopupMenuItem(value: 'history', child: Text('기록')),
                     PopupMenuItem(
                       value: 'delete',
-                      child: Text(
-                        '삭제',
-                        style: TextStyle(color: colors.danger),
-                      ),
+                      child: Text('삭제', style: TextStyle(color: colors.danger)),
                     ),
                   ],
                 ),
@@ -648,9 +631,7 @@ class _HabitCard extends StatelessWidget {
     final noun = habitWindowNoun(habit);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          '${habit.name} · $noun $count/${habit.timesPerPeriod}',
-        ),
+        content: Text('${habit.name} · $noun $count/${habit.timesPerPeriod}'),
       ),
     );
   }
@@ -659,17 +640,10 @@ class _HabitCard extends StatelessWidget {
     final when = await _pickDateTime(context, accent: colors.habit);
     if (when == null || !context.mounted) return;
     HapticFeedback.lightImpact();
-    await context.read<AppState>().logHabitCheck(
-          habitId: habit.id,
-          when: when,
-        );
+    await context.read<AppState>().logHabitCheck(habitId: habit.id, when: when);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${DateFormat('M/d HH:mm').format(when)} 기록',
-        ),
-      ),
+      SnackBar(content: Text('${DateFormat('M/d HH:mm').format(when)} 기록')),
     );
   }
 
@@ -844,8 +818,10 @@ Future<void> _showHistory(BuildContext context, Habit habit) async {
                           final check = history[index];
                           return ListTile(
                             title: Text(
-                              DateFormat('M월 d일 (E) HH:mm', 'ko')
-                                  .format(check.checkedAt),
+                              DateFormat(
+                                'M월 d일 (E) HH:mm',
+                                'ko',
+                              ).format(check.checkedAt),
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: c.textPrimary,
@@ -857,9 +833,9 @@ Future<void> _showHistory(BuildContext context, Habit habit) async {
                             trailing: IconButton(
                               tooltip: '삭제',
                               onPressed: () async {
-                                await context
-                                    .read<AppState>()
-                                    .deleteHabitCheck(check.id);
+                                await context.read<AppState>().deleteHabitCheck(
+                                  check.id,
+                                );
                               },
                               icon: Icon(
                                 Icons.delete_outline_rounded,
@@ -878,10 +854,7 @@ Future<void> _showHistory(BuildContext context, Habit habit) async {
   );
 }
 
-Future<void> _showHabitEditor(
-  BuildContext context, {
-  Habit? existing,
-}) async {
+Future<void> _showHabitEditor(BuildContext context, {Habit? existing}) async {
   final c = AppPalette.of(context);
   await showModalBottomSheet<void>(
     context: context,
@@ -945,9 +918,9 @@ class _HabitEditorSheetState extends State<_HabitEditorSheet> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이름을 입력하세요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('이름을 입력하세요')));
       return;
     }
     final note = _noteCtrl.text.trim();
@@ -1085,13 +1058,15 @@ class _HabitEditorSheetState extends State<_HabitEditorSheet> {
                 for (final preset in habitPresets)
                   ChoiceChip(
                     label: Text(preset.label),
-                    selected: preset.times == _times &&
+                    selected:
+                        preset.times == _times &&
                         preset.every == _every &&
                         preset.unit == _unit,
                     selectedColor: c.habit.withValues(alpha: 0.18),
                     labelStyle: TextStyle(
                       fontWeight: FontWeight.w700,
-                      color: preset.times == _times &&
+                      color:
+                          preset.times == _times &&
                               preset.every == _every &&
                               preset.unit == _unit
                           ? c.habit

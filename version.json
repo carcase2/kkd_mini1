@@ -1,7 +1,7 @@
 {
-  "version": "1.0.11",
-  "build": 16,
-  "message": "금욕도 목표 없이 시작·종료만, 경과 시간으로 기록",
+  "version": "1.0.12",
+  "build": 17,
+  "message": "홈에서 오늘 할 일이 먼저 보이고, 하단 탭 이름이 항상 나옵니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

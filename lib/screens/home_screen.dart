@@ -60,8 +60,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final reading = state.activeReading;
     final sinceLast = state.timeSinceLastMasturbation;
     final hasMasturbation = state.lastMasturbation != null;
-    final todayLabel =
-        DateFormat('yyyy년 M월 d일 (E)', 'ko').format(DateTime.now());
+    final todayLabel = DateFormat(
+      'yyyy년 M월 d일 (E)',
+      'ko',
+    ).format(DateTime.now());
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -70,419 +72,487 @@ class _HomeScreenState extends State<HomeScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-            // 업데이트 배너
-            if (_update != null && !_updateDismissed)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: _UpdateBanner(
-                    info: _update!,
-                    colors: c,
-                    onUpdate: () => UpdateService.openUpdate(_update!),
-                    onDismiss: _update!.force ? null : _dismissUpdate,
+              // 업데이트 배너
+              if (_update != null && !_updateDismissed)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    child: _UpdateBanner(
+                      info: _update!,
+                      colors: c,
+                      onUpdate: () => UpdateService.openUpdate(_update!),
+                      onDismiss: _update!.force ? null : _dismissUpdate,
+                    ),
                   ),
                 ),
-              ),
 
-            // 헤더 — 전체 폭 사용
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 12, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 오늘 날짜
-                    Text(
-                      todayLabel,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: c.fasting,
+              // 헤더 — 전체 폭 사용
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 12, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        todayLabel,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: c.fasting,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    // 제목 + 버전 + 메뉴
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: '절제',
-                                  style: TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.6,
-                                    color: c.textPrimary,
-                                    height: 1.15,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: '  ${AppVersion.label}',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: c.textMuted,
-                                    height: 1.15,
-                                  ),
-                                ),
-                              ],
+                      const SizedBox(height: 4),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '절제',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.6,
+                                color: c.textPrimary,
+                                height: 1.15,
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        _HeaderIconButton(
-                          colors: c,
-                          icon: state.isDarkMode
-                              ? Icons.light_mode_rounded
-                              : Icons.dark_mode_outlined,
-                          tooltip: '테마 변경',
-                          onTap: () => context.read<AppState>().toggleTheme(),
-                        ),
-                        const SizedBox(width: 4),
-                        PopupMenuButton<String>(
-                          tooltip: '더보기',
-                          onSelected: (v) async {
-                            if (v == 'backup') _showBackupSheet(context);
-                            if (v == 'sync') {
-                              final messenger = ScaffoldMessenger.of(context);
-                              await context.read<AppState>().refreshFromCloud();
-                              if (!context.mounted) return;
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('클라우드와 동기화했습니다'),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                            if (v == 'lock') _showLockSettings(context);
-                            if (v == 'lock_now') {
-                              context.read<AppState>().lockApp();
-                            }
-                            if (v == 'logout') {
-                              final ok = await showDialog<bool>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text('로그아웃'),
-                                  content: const Text(
-                                    '로그아웃해도 이 기기 데이터는 남습니다.\n'
-                                    '다른 기기·재설치 복원은 같은 계정으로 다시 로그인하세요.',
+                          _HeaderIconButton(
+                            colors: c,
+                            icon: state.isDarkMode
+                                ? Icons.light_mode_rounded
+                                : Icons.dark_mode_outlined,
+                            tooltip: '테마 변경',
+                            onTap: () => context.read<AppState>().toggleTheme(),
+                          ),
+                          const SizedBox(width: 4),
+                          PopupMenuButton<String>(
+                            tooltip: '더보기',
+                            onSelected: (v) async {
+                              if (v == 'backup') _showBackupSheet(context);
+                              if (v == 'sync') {
+                                final messenger = ScaffoldMessenger.of(context);
+                                await context
+                                    .read<AppState>()
+                                    .refreshFromCloud();
+                                if (!context.mounted) return;
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('클라우드와 동기화했습니다'),
+                                    behavior: SnackBarBehavior.floating,
                                   ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx, false),
-                                      child: const Text('취소'),
-                                    ),
-                                    FilledButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx, true),
-                                      child: const Text('로그아웃'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (ok == true && context.mounted) {
-                                await SupabaseSyncService.instance.signOut();
+                                );
                               }
-                            }
-                          },
-                          itemBuilder: (ctx) {
-                            final email =
-                                SupabaseSyncService.instance.email ?? '계정';
-                            return [
-                              PopupMenuItem(
-                                enabled: false,
-                                child: Text(
-                                  email,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: c.textMuted,
+                              if (v == 'lock') _showLockSettings(context);
+                              if (v == 'lock_now') {
+                                context.read<AppState>().lockApp();
+                              }
+                              if (v == 'logout') {
+                                final ok = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('로그아웃'),
+                                    content: const Text(
+                                      '로그아웃해도 이 기기 데이터는 남습니다.\n'
+                                      '다른 기기·재설치 복원은 같은 계정으로 다시 로그인하세요.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text('취소'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        child: const Text('로그아웃'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (ok == true && context.mounted) {
+                                  await SupabaseSyncService.instance.signOut();
+                                }
+                              }
+                            },
+                            itemBuilder: (ctx) {
+                              final email =
+                                  SupabaseSyncService.instance.email ?? '계정';
+                              return [
+                                PopupMenuItem(
+                                  enabled: false,
+                                  child: Text(
+                                    email,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: c.textMuted,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'backup',
-                                child: Text('백업 · 내보내기'),
-                              ),
-                              const PopupMenuItem(
-                                value: 'sync',
-                                child: Text('클라우드 동기화'),
-                              ),
-                              const PopupMenuItem(
-                                value: 'lock',
-                                child: Text('잠금 · 알림 설정'),
-                              ),
-                              if (state.lockEnabled)
                                 const PopupMenuItem(
-                                  value: 'lock_now',
-                                  child: Text('지금 잠그기'),
+                                  value: 'backup',
+                                  child: Text('백업 · 내보내기'),
                                 ),
-                              const PopupMenuItem(
-                                value: 'logout',
-                                child: Text('로그아웃'),
+                                const PopupMenuItem(
+                                  value: 'sync',
+                                  child: Text('클라우드 동기화'),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'lock',
+                                  child: Text('잠금 · 알림 설정'),
+                                ),
+                                if (state.lockEnabled)
+                                  const PopupMenuItem(
+                                    value: 'lock_now',
+                                    child: Text('지금 잠그기'),
+                                  ),
+                                const PopupMenuItem(
+                                  value: 'logout',
+                                  child: Text('로그아웃'),
+                                ),
+                              ];
+                            },
+                            child: Container(
+                              width: 46,
+                              height: 46,
+                              margin: const EdgeInsets.only(right: 4),
+                              decoration: BoxDecoration(
+                                color: c.surface,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: c.border),
+                                boxShadow: appCardShadow(c),
                               ),
-                            ];
-                          },
-                          child: Container(
-                            width: 46,
-                            height: 46,
-                            margin: const EdgeInsets.only(right: 4),
-                            decoration: BoxDecoration(
-                              color: c.surface,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: c.border),
-                              boxShadow: appCardShadow(c),
-                            ),
-                            child: Icon(
-                              Icons.more_horiz_rounded,
-                              color: c.textSecondary,
-                              size: 22,
+                              child: Icon(
+                                Icons.more_horiz_rounded,
+                                color: c.textSecondary,
+                                size: 22,
+                              ),
                             ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _greeting(),
+                        style: TextStyle(
+                          color: c.textSecondary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          height: 1.3,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '건강한 습관을 기록하는 루틴 앱',
-                      style: TextStyle(
-                        color: c.textMuted,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        height: 1.35,
                       ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_todayChips(state, c).isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+                    child: _TodayStrip(
+                      chips: _todayChips(state, c),
+                      onTap: _goTo,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _greeting(),
-                      style: TextStyle(
-                        color: c.textSecondary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                child: _OverviewBanner(state: state, colors: c),
-              ),
-            ),
-            if (fasting != null)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                  child: _ActiveCard(
-                    title: '단식 진행 중',
-                    color: c.fasting,
-                    soft: c.fastingSoft,
-                    colors: c,
-                    elapsed: fasting.elapsed,
-                    target: null,
-                    caption: fastingProgressCaption(fasting.elapsed),
-                    onTap: () => _goTo(1),
                   ),
                 ),
-              ),
-            if (abstinence != null)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                  child: _ActiveCard(
-                    title: '금욕 진행 중',
-                    color: c.abstinence,
-                    soft: c.abstinenceSoft,
-                    colors: c,
-                    elapsed: abstinence.elapsed,
-                    target: null,
-                    caption: abstinenceProgressCaption(abstinence.elapsed),
-                    onTap: () => _goTo(2),
-                  ),
-                ),
-              ),
-            if (reading != null)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                  child: _ActiveCard(
-                    title: '독서 중 · ${state.bookById(reading.bookId)?.title ?? '책'}',
-                    color: c.reading,
-                    soft: c.readingSoft,
-                    colors: c,
-                    elapsed: reading.elapsed,
-                    target: Duration(minutes: state.readingDailyGoalMinutes),
-                    onTap: () => _goTo(3),
-                  ),
-                ),
-              ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                child: _CheckCard(
-                  colors: c,
-                  hasRecord: hasMasturbation,
-                  since: sinceLast,
-                  onTap: () => _goTo(4),
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  '빠른 현황',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: c.textPrimary,
-                  ),
-                ),
-              ),
-            ),
-            // 빠른 현황 — 가로 한 줄 리스트
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    _QuickRow(
-                      title: '단식',
-                      icon: Icons.restaurant_outlined,
+              if (fasting != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                    child: _ActiveCard(
+                      title: '단식 진행 중',
                       color: c.fasting,
                       soft: c.fastingSoft,
                       colors: c,
-                      status: fasting != null
-                          ? '${formatDuration(fasting.elapsed, short: true)} 진행'
-                          : '대기 중',
-                      detail: fasting != null
-                          ? fastingProgressCaption(fasting.elapsed)
-                          : '총 ${state.fastingTotal}회 · 최장 ${state.fastingTotal == 0 ? '-' : formatDurationTiny(state.fastingLongest)}',
+                      elapsed: fasting.elapsed,
+                      target: null,
+                      caption: fastingProgressCaption(fasting.elapsed),
                       onTap: () => _goTo(1),
                     ),
-                    const SizedBox(height: 8),
-                    _QuickRow(
-                      title: '금욕',
-                      icon: Icons.shield_outlined,
+                  ),
+                ),
+              if (abstinence != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                    child: _ActiveCard(
+                      title: '금욕 진행 중',
                       color: c.abstinence,
                       soft: c.abstinenceSoft,
                       colors: c,
-                      status: abstinence != null
-                          ? '${formatDuration(abstinence.elapsed, short: true)} 진행'
-                          : '대기 중',
-                      detail: abstinence != null
-                          ? abstinenceProgressCaption(abstinence.elapsed)
-                          : '총 ${state.abstinenceTotal}회 · 최장 ${state.abstinenceTotal == 0 ? '-' : formatDurationTiny(state.abstinenceLongest)}',
+                      elapsed: abstinence.elapsed,
+                      target: null,
+                      caption: abstinenceProgressCaption(abstinence.elapsed),
                       onTap: () => _goTo(2),
                     ),
-                    const SizedBox(height: 8),
-                    _QuickRow(
-                      title: '독서',
-                      icon: Icons.menu_book_rounded,
+                  ),
+                ),
+              if (reading != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                    child: _ActiveCard(
+                      title:
+                          '독서 중 · ${state.bookById(reading.bookId)?.title ?? '책'}',
                       color: c.reading,
                       soft: c.readingSoft,
                       colors: c,
-                      status: reading != null
-                          ? '${formatDuration(reading.elapsed, short: true)} 진행'
-                          : state.readingTodayGoalMet
-                              ? '오늘 목표 달성'
-                              : '오늘 ${formatDurationTiny(state.readingToday)}',
-                      detail: state.selectedBook != null
-                          ? '${state.selectedBook!.title} · 연속 ${state.readingStreak}일'
-                          : '주 ${formatDurationTiny(state.readingThisWeek)} · ${state.books.length}권',
+                      elapsed: reading.elapsed,
+                      target: Duration(minutes: state.readingDailyGoalMinutes),
                       onTap: () => _goTo(3),
                     ),
-                    const SizedBox(height: 8),
-                    _QuickRow(
-                      title: '체크',
-                      icon: Icons.favorite_border_rounded,
-                      color: c.check,
-                      soft: c.checkSoft,
-                      colors: c,
-                      status: hasMasturbation
-                          ? formatElapsedDayHour(sinceLast)
-                          : '기록 없음',
-                      detail:
-                          '주 ${state.masturbationThisWeek}회 · 월 ${state.masturbationThisMonth}회',
-                      onTap: () => _goTo(4),
-                    ),
-                    const SizedBox(height: 8),
-                    _QuickRow(
-                      title: '습관',
-                      icon: Icons.checklist_rounded,
-                      color: c.habit,
-                      soft: c.habitSoft,
-                      colors: c,
-                      status: state.habitHomeStatus,
-                      detail: state.habitHomeDetail,
-                      onTap: () => _goTo(5),
-                    ),
-                    const SizedBox(height: 8),
-                    _QuickRow(
-                      title: '약',
-                      icon: Icons.medication_rounded,
-                      color: c.warning,
-                      soft: c.warningSoft,
-                      colors: c,
-                      status: state.activeMedications.isEmpty &&
-                              state.activeMedicationSets.isEmpty
-                          ? '등록 없음'
-                          : state.medicationDueCount > 0
-                              ? '복용 가능 ${state.medicationDueCount}개'
-                              : _medicationHomeStatus(state),
-                      detail: state.activeMedications.isEmpty &&
-                              state.activeMedicationSets.isEmpty
-                          ? '약·세트로 복용 시간을 기록하세요'
-                          : _medicationHomeDetail(state),
-                      onTap: () => _goTo(6),
-                    ),
-                    const SizedBox(height: 8),
-                    _QuickRow(
-                      title: '통계',
-                      icon: Icons.insights_rounded,
-                      color: c.success,
-                      soft: c.successSoft,
-                      colors: c,
-                      status: state.fastingTotal == 0
-                          ? '단식 기록 없음'
-                          : '단식 최장 ${formatDurationTiny(state.fastingLongest)}',
-                      detail: state.abstinenceTotal == 0
-                          ? '금욕 기록 없음'
-                          : '금욕 최장 ${formatDurationTiny(state.abstinenceLongest)}',
-                      onTap: () => _goTo(7),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                child: Center(
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                   child: Text(
-                    AppVersion.label,
+                    '빠른 현황',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: c.textMuted.withValues(alpha: 0.85),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: c.textPrimary,
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Material(
+                    color: c.surface,
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: BorderSide(color: c.border),
+                    ),
+                    child: Column(
+                      children: [
+                        _QuickRow(
+                          title: '단식',
+                          icon: Icons.restaurant_outlined,
+                          color: c.fasting,
+                          soft: c.fastingSoft,
+                          colors: c,
+                          status: fasting != null
+                              ? '${formatDuration(fasting.elapsed, short: true)} 진행'
+                              : '대기 중',
+                          detail: fasting != null
+                              ? fastingProgressCaption(fasting.elapsed)
+                              : '총 ${state.fastingTotal}회 · 최장 ${state.fastingTotal == 0 ? '-' : formatDurationTiny(state.fastingLongest)}',
+                          onTap: () => _goTo(1),
+                        ),
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          indent: 62,
+                          endIndent: 14,
+                          color: c.border,
+                        ),
+                        _QuickRow(
+                          title: '금욕',
+                          icon: Icons.shield_outlined,
+                          color: c.abstinence,
+                          soft: c.abstinenceSoft,
+                          colors: c,
+                          status: abstinence != null
+                              ? '${formatDuration(abstinence.elapsed, short: true)} 진행'
+                              : '대기 중',
+                          detail: abstinence != null
+                              ? abstinenceProgressCaption(abstinence.elapsed)
+                              : '총 ${state.abstinenceTotal}회 · 최장 ${state.abstinenceTotal == 0 ? '-' : formatDurationTiny(state.abstinenceLongest)}',
+                          onTap: () => _goTo(2),
+                        ),
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          indent: 62,
+                          endIndent: 14,
+                          color: c.border,
+                        ),
+                        _QuickRow(
+                          title: '독서',
+                          icon: Icons.menu_book_rounded,
+                          color: c.reading,
+                          soft: c.readingSoft,
+                          colors: c,
+                          status: reading != null
+                              ? '${formatDuration(reading.elapsed, short: true)} 진행'
+                              : state.readingTodayGoalMet
+                              ? '오늘 목표 달성'
+                              : '오늘 ${formatDurationTiny(state.readingToday)}',
+                          detail: state.selectedBook != null
+                              ? '${state.selectedBook!.title} · 연속 ${state.readingStreak}일'
+                              : '주 ${formatDurationTiny(state.readingThisWeek)} · ${state.books.length}권',
+                          onTap: () => _goTo(3),
+                        ),
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          indent: 62,
+                          endIndent: 14,
+                          color: c.border,
+                        ),
+                        _QuickRow(
+                          title: '체크',
+                          icon: Icons.favorite_border_rounded,
+                          color: c.check,
+                          soft: c.checkSoft,
+                          colors: c,
+                          status: hasMasturbation
+                              ? formatElapsedDayHour(sinceLast)
+                              : '기록 없음',
+                          detail:
+                              '주 ${state.masturbationThisWeek}회 · 월 ${state.masturbationThisMonth}회',
+                          onTap: () => _goTo(4),
+                        ),
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          indent: 62,
+                          endIndent: 14,
+                          color: c.border,
+                        ),
+                        _QuickRow(
+                          title: '습관',
+                          icon: Icons.checklist_rounded,
+                          color: c.habit,
+                          soft: c.habitSoft,
+                          colors: c,
+                          status: state.habitHomeStatus,
+                          detail: state.habitHomeDetail,
+                          onTap: () => _goTo(5),
+                        ),
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          indent: 62,
+                          endIndent: 14,
+                          color: c.border,
+                        ),
+                        _QuickRow(
+                          title: '약',
+                          icon: Icons.medication_rounded,
+                          color: c.warning,
+                          soft: c.warningSoft,
+                          colors: c,
+                          status:
+                              state.activeMedications.isEmpty &&
+                                  state.activeMedicationSets.isEmpty
+                              ? '등록 없음'
+                              : state.medicationDueCount > 0
+                              ? '복용 가능 ${state.medicationDueCount}개'
+                              : _medicationHomeStatus(state),
+                          detail:
+                              state.activeMedications.isEmpty &&
+                                  state.activeMedicationSets.isEmpty
+                              ? '약·세트로 복용 시간을 기록하세요'
+                              : _medicationHomeDetail(state),
+                          onTap: () => _goTo(6),
+                        ),
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          indent: 62,
+                          endIndent: 14,
+                          color: c.border,
+                        ),
+                        _QuickRow(
+                          title: '통계',
+                          icon: Icons.insights_rounded,
+                          color: c.success,
+                          soft: c.successSoft,
+                          colors: c,
+                          status: state.fastingTotal == 0
+                              ? '단식 기록 없음'
+                              : '단식 최장 ${formatDurationTiny(state.fastingLongest)}',
+                          detail: state.abstinenceTotal == 0
+                              ? '금욕 기록 없음'
+                              : '금욕 최장 ${formatDurationTiny(state.abstinenceLongest)}',
+                          onTap: () => _goTo(7),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                  child: Center(
+                    child: Text(
+                      AppVersion.label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: c.textMuted.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  List<_TodayChip> _todayChips(AppState state, AppPalette c) {
+    final chips = <_TodayChip>[];
+    if (state.lastMasturbation != null) {
+      chips.add(
+        _TodayChip(
+          label: '체크 ${formatElapsedDayHour(state.timeSinceLastMasturbation)}',
+          icon: Icons.favorite_rounded,
+          color: c.check,
+          soft: c.checkSoft,
+          tab: 4,
+        ),
+      );
+    }
+    if (state.habitOpenCount > 0) {
+      chips.add(
+        _TodayChip(
+          label: '습관 ${state.habitOpenCount}개 남음',
+          icon: Icons.checklist_rounded,
+          color: c.habit,
+          soft: c.habitSoft,
+          tab: 5,
+        ),
+      );
+    }
+    if (state.medicationDueCount > 0) {
+      chips.add(
+        _TodayChip(
+          label: '약 ${state.medicationDueCount}개 복용',
+          icon: Icons.medication_rounded,
+          color: c.warning,
+          soft: c.warningSoft,
+          tab: 6,
+        ),
+      );
+    }
+    final readingLeft =
+        state.readingDailyGoalMinutes - state.readingToday.inMinutes;
+    if (state.activeReading == null &&
+        !state.readingTodayGoalMet &&
+        readingLeft > 0 &&
+        (state.books.isNotEmpty || state.readingTotalTime > Duration.zero)) {
+      chips.add(
+        _TodayChip(
+          label: '독서 $readingLeft분 남음',
+          icon: Icons.menu_book_rounded,
+          color: c.reading,
+          soft: c.readingSoft,
+          tab: 3,
+        ),
+      );
+    }
+    return chips;
   }
 
   String _greeting() {
@@ -592,7 +662,11 @@ class _UpdateBanner extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(Icons.system_update_rounded, color: colors.fasting, size: 28),
+              Icon(
+                Icons.system_update_rounded,
+                color: colors.fasting,
+                size: 28,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -608,9 +682,7 @@ class _UpdateBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      info.message.isNotEmpty
-                          ? info.message
-                          : '눌러서 업데이트하기',
+                      info.message.isNotEmpty ? info.message : '눌러서 업데이트하기',
                       style: TextStyle(
                         fontSize: 12,
                         color: colors.textSecondary,
@@ -734,14 +806,14 @@ class _BackupSheetState extends State<_BackupSheet> {
       await _loadLocals();
       if (!mounted) return;
       HapticFeedback.mediumImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('백업 파일을 공유할 준비가 됐어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('백업 파일을 공유할 준비가 됐어요')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('내보내기 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('내보내기 실패: $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -758,14 +830,14 @@ class _BackupSheetState extends State<_BackupSheet> {
       await _loadLocals();
       if (!mounted) return;
       HapticFeedback.mediumImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('기기에 백업을 저장했어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('기기에 백업을 저장했어요')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('백업 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('백업 실패: $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -806,14 +878,14 @@ class _BackupSheetState extends State<_BackupSheet> {
       HapticFeedback.mediumImpact();
       if (mounted) Navigator.pop(context);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('백업을 불러왔어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('백업을 불러왔어요')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('불러오기 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('불러오기 실패: $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -854,14 +926,14 @@ class _BackupSheetState extends State<_BackupSheet> {
       if (!mounted) return;
       HapticFeedback.mediumImpact();
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로컬 백업으로 복원했어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로컬 백업으로 복원했어요')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('복원 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('복원 실패: $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -918,9 +990,7 @@ class _BackupSheetState extends State<_BackupSheet> {
                 decoration: BoxDecoration(
                   color: c.fasting.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: c.fasting.withValues(alpha: 0.22),
-                  ),
+                  border: Border.all(color: c.fasting.withValues(alpha: 0.22)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1166,7 +1236,11 @@ class _BackupSheetState extends State<_BackupSheet> {
               Text(
                 '· 자동 백업: 기록 추가·변경 시 기기 안 저장 (최대 15개).\n'
                 '· 앱 삭제 시 사라집니다. 재설치·기종 변경은 「내보내기」를 쓰세요.',
-                style: TextStyle(fontSize: 12, color: c.textMuted, height: 1.45),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: c.textMuted,
+                  height: 1.45,
+                ),
               ),
               if (_busy) ...[
                 const SizedBox(height: 12),
@@ -1217,9 +1291,7 @@ class _LockSettingsSheetState extends State<_LockSettingsSheet> {
       if (!_biometricReady) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('이 기기에서 $_biometricLabel를 사용할 수 없습니다'),
-          ),
+          SnackBar(content: Text('이 기기에서 $_biometricLabel를 사용할 수 없습니다')),
         );
         return;
       }
@@ -1228,9 +1300,9 @@ class _LockSettingsSheetState extends State<_LockSettingsSheet> {
       );
       if (!ok) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$_biometricLabel 인증에 실패했습니다')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$_biometricLabel 인증에 실패했습니다')));
         return;
       }
     }
@@ -1244,8 +1316,7 @@ class _LockSettingsSheetState extends State<_LockSettingsSheet> {
     final c = AppPalette.of(context);
     final media = MediaQuery.of(context);
     // 시스템 내비/제스처 바와 겹치지 않도록 넉넉히
-    final bottomPad =
-        40 + media.viewInsets.bottom + media.viewPadding.bottom;
+    final bottomPad = 40 + media.viewInsets.bottom + media.viewPadding.bottom;
 
     return SafeArea(
       top: false,
@@ -1255,169 +1326,172 @@ class _LockSettingsSheetState extends State<_LockSettingsSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: c.border,
-                borderRadius: BorderRadius.circular(2),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: c.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Icon(Icons.security_rounded, color: c.fasting),
-              const SizedBox(width: 10),
-              Text(
-                '잠금 설정',
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(Icons.security_rounded, color: c.fasting),
+                const SizedBox(width: 10),
+                Text(
+                  '잠금 설정',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: c.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '앱 시작·백그라운드 복귀 시 Face ID 또는 비밀번호로 보호합니다.',
+              style: TextStyle(
+                fontSize: 13,
+                color: c.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                '앱 잠금 사용',
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                   color: c.textPrimary,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '앱 시작·백그라운드 복귀 시 Face ID 또는 비밀번호로 보호합니다.',
-            style: TextStyle(fontSize: 13, color: c.textSecondary, height: 1.4),
-          ),
-          const SizedBox(height: 16),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              '앱 잠금 사용',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: c.textPrimary,
+              subtitle: Text(
+                '켜면 실행 시 비밀번호가 필요합니다',
+                style: TextStyle(fontSize: 12, color: c.textMuted),
               ),
+              value: state.lockEnabled,
+              activeThumbColor: c.fasting,
+              onChanged: (v) => context.read<AppState>().setLockEnabled(v),
             ),
-            subtitle: Text(
-              '켜면 실행 시 비밀번호가 필요합니다',
-              style: TextStyle(fontSize: 12, color: c.textMuted),
-            ),
-            value: state.lockEnabled,
-            activeThumbColor: c.fasting,
-            onChanged: (v) => context.read<AppState>().setLockEnabled(v),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              '$_biometricLabel로 잠금 해제',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: c.textPrimary,
-              ),
-            ),
-            subtitle: Text(
-              _biometricReady
-                  ? '비밀번호 대신 $_biometricLabel를 사용할 수 있습니다'
-                  : '이 기기에서 $_biometricLabel를 사용할 수 없습니다',
-              style: TextStyle(fontSize: 12, color: c.textMuted),
-            ),
-            value: state.lockEnabled &&
-                state.biometricUnlockEnabled &&
-                _biometricReady,
-            activeThumbColor: c.fasting,
-            onChanged: state.lockEnabled
-                ? (v) => _onBiometricChanged(v)
-                : null,
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              '자동 잠금',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: c.textPrimary,
-              ),
-            ),
-            subtitle: Text(
-              '앱을 나가면 자동으로 잠급니다',
-              style: TextStyle(fontSize: 12, color: c.textMuted),
-            ),
-            value: state.autoLockEnabled,
-            activeThumbColor: c.fasting,
-            onChanged: state.lockEnabled
-                ? (v) => context.read<AppState>().setAutoLockEnabled(v)
-                : null,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '세션 알림',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: c.textPrimary,
-            ),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              '단식·금욕 진행 알림',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: c.textPrimary,
-              ),
-            ),
-            subtitle: Text(
-              '단식·금욕은 지난 구간마다 알림',
-              style: TextStyle(fontSize: 12, color: c.textMuted),
-            ),
-            value: state.sessionNotificationsEnabled,
-            activeThumbColor: c.fasting,
-            onChanged: (v) =>
-                context.read<AppState>().setSessionNotificationsEnabled(v),
-          ),
-          const SizedBox(height: 8),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.password_rounded, color: c.fasting),
-            title: Text(
-              '비밀번호 변경',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: c.textPrimary,
-              ),
-            ),
-            subtitle: Text(
-              '숫자 4~12자리',
-              style: TextStyle(fontSize: 12, color: c.textMuted),
-            ),
-            trailing: Icon(Icons.chevron_right_rounded, color: c.textMuted),
-            enabled: state.lockEnabled,
-            onTap: state.lockEnabled
-                ? () => _changePin(context)
-                : null,
-          ),
-          if (state.lockEnabled) ...[
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-                context.read<AppState>().lockApp();
-              },
-              icon: const Icon(Icons.lock_rounded),
-              label: const Text(
-                '지금 잠그기',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: c.fasting,
-                side: BorderSide(color: c.fasting.withValues(alpha: 0.4)),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                '$_biometricLabel로 잠금 해제',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: c.textPrimary,
                 ),
               ),
+              subtitle: Text(
+                _biometricReady
+                    ? '비밀번호 대신 $_biometricLabel를 사용할 수 있습니다'
+                    : '이 기기에서 $_biometricLabel를 사용할 수 없습니다',
+                style: TextStyle(fontSize: 12, color: c.textMuted),
+              ),
+              value:
+                  state.lockEnabled &&
+                  state.biometricUnlockEnabled &&
+                  _biometricReady,
+              activeThumbColor: c.fasting,
+              onChanged: state.lockEnabled
+                  ? (v) => _onBiometricChanged(v)
+                  : null,
             ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                '자동 잠금',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: c.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                '앱을 나가면 자동으로 잠급니다',
+                style: TextStyle(fontSize: 12, color: c.textMuted),
+              ),
+              value: state.autoLockEnabled,
+              activeThumbColor: c.fasting,
+              onChanged: state.lockEnabled
+                  ? (v) => context.read<AppState>().setAutoLockEnabled(v)
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '세션 알림',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: c.textPrimary,
+              ),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                '단식·금욕 진행 알림',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: c.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                '단식·금욕은 지난 구간마다 알림',
+                style: TextStyle(fontSize: 12, color: c.textMuted),
+              ),
+              value: state.sessionNotificationsEnabled,
+              activeThumbColor: c.fasting,
+              onChanged: (v) =>
+                  context.read<AppState>().setSessionNotificationsEnabled(v),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.password_rounded, color: c.fasting),
+              title: Text(
+                '비밀번호 변경',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: c.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                '숫자 4~12자리',
+                style: TextStyle(fontSize: 12, color: c.textMuted),
+              ),
+              trailing: Icon(Icons.chevron_right_rounded, color: c.textMuted),
+              enabled: state.lockEnabled,
+              onTap: state.lockEnabled ? () => _changePin(context) : null,
+            ),
+            if (state.lockEnabled) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.read<AppState>().lockApp();
+                },
+                icon: const Icon(Icons.lock_rounded),
+                label: const Text(
+                  '지금 잠그기',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: c.fasting,
+                  side: BorderSide(color: c.fasting.withValues(alpha: 0.4)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ],
+            // 하단 여백 (내비 바와 버튼 사이)
+            const SizedBox(height: 24),
           ],
-          // 하단 여백 (내비 바와 버튼 사이)
-          const SizedBox(height: 24),
-        ],
         ),
       ),
     );
@@ -1480,108 +1554,107 @@ class _LockSettingsSheetState extends State<_LockSettingsSheet> {
     final confirm = confirmCtrl.text.trim();
 
     if (next != confirm) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('새 비밀번호가 일치하지 않습니다')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('새 비밀번호가 일치하지 않습니다')));
       return;
     }
-    if (next.length < 4 || next.length > 12 || !RegExp(r'^\d+$').hasMatch(next)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('비밀번호는 숫자 4~12자리여야 합니다')),
-      );
+    if (next.length < 4 ||
+        next.length > 12 ||
+        !RegExp(r'^\d+$').hasMatch(next)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('비밀번호는 숫자 4~12자리여야 합니다')));
       return;
     }
 
     final success = await context.read<AppState>().changePin(
-          currentPin: current,
-          newPin: next,
-        );
+      currentPin: current,
+      newPin: next,
+    );
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success ? '비밀번호를 변경했어요' : '현재 비밀번호가 올바르지 않습니다',
-        ),
+      SnackBar(content: Text(success ? '비밀번호를 변경했어요' : '현재 비밀번호가 올바르지 않습니다')),
+    );
+  }
+}
+
+class _TodayChip {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final Color soft;
+  final int tab;
+
+  const _TodayChip({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.soft,
+    required this.tab,
+  });
+}
+
+class _TodayStrip extends StatelessWidget {
+  final List<_TodayChip> chips;
+  final void Function(int tabIndex) onTap;
+
+  const _TodayStrip({required this.chips, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var i = 0; i < chips.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            _TodayChipButton(chip: chips[i], onTap: () => onTap(chips[i].tab)),
+          ],
+        ],
       ),
     );
   }
 }
 
-class _OverviewBanner extends StatelessWidget {
-  final AppState state;
-  final AppPalette colors;
-  const _OverviewBanner({required this.state, required this.colors});
+class _TodayChipButton extends StatelessWidget {
+  final _TodayChip chip;
+  final VoidCallback onTap;
+
+  const _TodayChipButton({required this.chip, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final activeCount =
-        (state.activeFasting != null ? 1 : 0) +
-        (state.activeAbstinence != null ? 1 : 0) +
-        (state.activeReading != null ? 1 : 0);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colors.fasting.withValues(alpha: 0.14),
-            colors.abstinence.withValues(alpha: 0.12),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final c = AppPalette.of(context);
+    return Material(
+      color: chip.soft,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: chip.color.withValues(alpha: 0.28)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(chip.icon, size: 16, color: chip.color),
+              const SizedBox(width: 6),
+              Text(
+                chip.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: c.textPrimary,
+                  height: 1.1,
+                ),
+              ),
+            ],
+          ),
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.border),
-        boxShadow: appCardShadow(colors),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: appCardShadow(colors),
-            ),
-            child: Icon(Icons.bolt_rounded, color: colors.fasting, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  activeCount > 0
-                      ? '챌린지 $activeCount개 진행 중'
-                      : '진행 중인 챌린지 없음',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: colors.textPrimary,
-                    height: 1.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  activeCount > 0
-                      ? '아래에서 타이머를 확인하세요'
-                      : '단식·금욕·독서를 시작해보세요',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.textSecondary,
-                    height: 1.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1592,10 +1665,7 @@ class _CardLine extends StatelessWidget {
   final String text;
   final TextStyle style;
 
-  const _CardLine({
-    required this.text,
-    required this.style,
-  });
+  const _CardLine({required this.text, required this.style});
 
   @override
   Widget build(BuildContext context) {
@@ -1604,104 +1674,7 @@ class _CardLine extends StatelessWidget {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         alignment: Alignment.centerLeft,
-        child: Text(
-          text,
-          style: style,
-          maxLines: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _CheckCard extends StatelessWidget {
-  final AppPalette colors;
-  final bool hasRecord;
-  final Duration since;
-  final VoidCallback onTap;
-
-  const _CheckCard({
-    required this.colors,
-    required this.hasRecord,
-    required this.since,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = colors.check;
-    final soft = colors.checkSoft;
-
-    return Material(
-      color: soft,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.28)),
-            boxShadow: appCardShadow(colors),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: colors.surface.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withValues(alpha: 0.2)),
-                ),
-                child: Icon(Icons.favorite_rounded, color: color, size: 22),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _CardLine(
-                      text: '체크',
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 11,
-                        height: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    _CardLine(
-                      text: hasRecord
-                          ? formatElapsedDayHour(since)
-                          : '아직 기록 없음',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        height: 1.1,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    if (hasRecord) ...[
-                      const SizedBox(height: 2),
-                      _CardLine(
-                        text: '마지막 체크 이후',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: colors.textSecondary,
-                          height: 1.1,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: color, size: 18),
-            ],
-          ),
-        ),
+        child: Text(text, style: style, maxLines: 1),
       ),
     );
   }
@@ -1784,7 +1757,8 @@ class _ActiveCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     _CardLine(
-                      text: caption ??
+                      text:
+                          caption ??
                           (target != null
                               ? '목표 ${formatTargetDuration(target)}${pct != null ? ' · $pct%' : ''}'
                               : '자유 모드'),
@@ -1794,7 +1768,6 @@ class _ActiveCard extends StatelessWidget {
                         height: 1.1,
                       ),
                     ),
-
                   ],
                 ),
               ),
@@ -1834,95 +1807,71 @@ class _QuickRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: colors.surface,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: colors.border),
-            boxShadow: appCardShadow(colors),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: soft,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 20),
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: soft,
+                borderRadius: BorderRadius.circular(11),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                        color: color,
-                        height: 1.2,
-                      ),
-                      maxLines: 1,
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      color: color,
+                      height: 1.2,
                     ),
-                    const SizedBox(height: 3),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                            color: colors.textPrimary,
-                            height: 1.2,
-                          ),
-                          maxLines: 1,
-                        ),
-                      ),
+                    maxLines: 1,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    status,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: colors.textPrimary,
+                      height: 1.2,
                     ),
-                    const SizedBox(height: 2),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          detail,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colors.textSecondary,
-                            height: 1.2,
-                          ),
-                          maxLines: 1,
-                        ),
-                      ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    detail,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                      height: 1.2,
                     ),
-                  ],
-                ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 22,
-                color: color.withValues(alpha: 0.7),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: color.withValues(alpha: 0.7),
+            ),
+          ],
         ),
       ),
     );
