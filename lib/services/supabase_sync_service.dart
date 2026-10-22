@@ -1,22 +1,29 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../config/supabase_config.dart';
 import 'storage_service.dart';
 
-/// 이메일 로그인 사용자별 app_data JSON 동기화
+/// 이메일 로그인 사용자별 app_data JSON 동기화.
+/// 클라이언트는 껍데기(DualAuth)가 만들어 attach 합니다.
 class SupabaseSyncService {
   SupabaseSyncService._();
   static final instance = SupabaseSyncService._();
 
   static const _table = 'app_data';
 
+  SupabaseClient? _attached;
   bool _ready = false;
-  bool get isReady => _ready;
+  bool get isReady => _ready && _attached != null;
 
-  SupabaseClient get _client => Supabase.instance.client;
+  SupabaseClient get _client {
+    final client = _attached;
+    if (client == null) {
+      throw StateError('절제 Supabase 클라이언트가 연결되지 않았습니다');
+    }
+    return client;
+  }
 
-  User? get currentUser => _client.auth.currentUser;
+  User? get currentUser => _attached?.auth.currentUser;
 
   bool get isLoggedIn {
     final user = currentUser;
@@ -27,25 +34,29 @@ class SupabaseSyncService {
 
   String? get email => currentUser?.email;
 
-  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
+  Stream<AuthState> get authStateChanges {
+    final client = _attached;
+    if (client == null) return const Stream.empty();
+    return client.auth.onAuthStateChange;
+  }
 
-  Future<void> init() async {
-    if (_ready) return;
+  /// 이미 로그인된 클라이언트를 붙입니다. Supabase.initialize 는 쓰지 않습니다.
+  Future<void> attach(SupabaseClient client) async {
+    _attached = client;
     try {
-      await Supabase.initialize(
-        url: SupabaseConfig.url,
-        publishableKey: SupabaseConfig.publishableKey,
-      );
-      // 예전 익명 세션은 버리고 로그인 화면으로
-      final user = _client.auth.currentUser;
+      final user = client.auth.currentUser;
       if (user != null && user.isAnonymous == true) {
-        await _client.auth.signOut();
+        await client.auth.signOut();
       }
       _ready = true;
     } catch (e, st) {
-      debugPrint('Supabase init failed: $e\n$st');
+      debugPrint('Supabase attach failed: $e\n$st');
       _ready = false;
     }
+  }
+
+  Future<void> init() async {
+    if (_ready) return;
   }
 
   Future<void> signIn({

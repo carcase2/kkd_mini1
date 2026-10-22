@@ -1,0 +1,33 @@
+name: webtoon_reader
+description: Webtoon library, reader, and R2 archive used by the discipline shell.
+publish_to: 'none'
+version: 1.0.11+15
+
+environment:
+  sdk: ^3.12.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # 6.1.5의 Android 플러그인은 현재 AGP에서 proguard-android.txt 때문에 빌드가 깨진다.
+  flutter_inappwebview: 6.2.0-beta.3
+  path_provider: ^2.1.5
+  hive_flutter: ^1.1.0
+  dio: ^5.8.0+1
+  path: ^1.9.1
+  html: ^0.15.6
+  # 1.6+ 는 package_info_plus 10을 요구해 절제 앱의 share_plus/file_picker와 충돌한다.
+  wakelock_plus: 1.5.2
+  connectivity_plus: ^6.1.4
+  supabase_flutter: ^2.17.1
+  shared_preferences: ^2.5.5
+  crypto: ^3.0.6
+  local_auth: ^3.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

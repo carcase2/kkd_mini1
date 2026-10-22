@@ -6,9 +6,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 /// PackageInfo 로드 전에는 이 값이 쓰이므로 옛 값(1.0.3 등)이 남으면
 /// 업데이트 오탐이 날 수 있다.
 class AppVersion {
-  static String _label = 'v1.0.12';
-  static String _full = '1.0.12';
-  static int? _buildNumber = 17;
+  static String _label = 'v1.1.0';
+  static String _full = '1.1.0';
+  static int? _buildNumber = 18;
   static bool _loaded = false;
 
   /// 표시용 (v1.0.8)
@@ -33,9 +33,9 @@ class AppVersion {
       _loaded = true;
     } catch (_) {
       // pubspec 기본값 유지
-      _label = 'v1.0.12';
-      _full = '1.0.12';
-      _buildNumber = 17;
+      _label = 'v1.1.0';
+      _full = '1.1.0';
+      _buildNumber = 18;
     }
   }
 }

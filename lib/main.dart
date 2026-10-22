@@ -5,11 +5,16 @@ import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:webtoon_reader/services/lock_service.dart';
+import 'package:webtoon_reader/services/supabase_sync_service.dart' as webtoon;
+import 'package:webtoon_reader/webtoon_app.dart';
 
 import 'providers/app_state.dart';
 import 'screens/lock_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/mode_picker_screen.dart';
 import 'screens/shell.dart';
+import 'services/dual_auth.dart';
 import 'services/notification_service.dart';
 import 'services/supabase_sync_service.dart';
 import 'theme/app_theme.dart';
@@ -20,9 +25,21 @@ Future<void> main() async {
   await initializeDateFormatting('ko');
   await AppVersion.load();
   await NotificationService.instance.init();
-  await SupabaseSyncService.instance.init();
+
+  LockService.hostProvidesLock = true;
+  await DualAuth.instance.init();
+  final discipline = DualAuth.instance.disciplineClient;
+  if (discipline != null) {
+    await SupabaseSyncService.instance.attach(discipline);
+  }
+  final webtoonClient = DualAuth.instance.webtoonClient;
+  if (webtoonClient != null) {
+    await webtoon.SupabaseSyncService.instance.attach(webtoonClient);
+  }
+  webtoon.SupabaseSyncService.instance.hostSignOut = DualAuth.instance.signOut;
 
   final appState = AppState();
+  LockService.hostLock = appState.lockApp;
   await appState.load();
 
   AppColors.bind(
@@ -49,48 +66,73 @@ class DisciplineApp extends StatefulWidget {
 
 class _DisciplineAppState extends State<DisciplineApp>
     with WidgetsBindingObserver {
-  StreamSubscription<AuthState>? _authSub;
+  StreamSubscription<AuthState>? _disciplineAuthSub;
+  StreamSubscription<AuthState>? _webtoonAuthSub;
   bool _loggedIn = false;
+  AppMode? _mode;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loggedIn = SupabaseSyncService.instance.isLoggedIn;
-    _authSub = SupabaseSyncService.instance.authStateChanges.listen((event) {
-      final loggedIn = SupabaseSyncService.instance.isLoggedIn;
-      if (!mounted) return;
-      setState(() => _loggedIn = loggedIn);
-      if (loggedIn) {
-        // 로그인 직후 클라우드 동기화
-        context.read<AppState>().syncCloud();
-      }
+    _loggedIn = DualAuth.instance.anyLoggedIn;
+    final discipline = DualAuth.instance.disciplineClient;
+    final webtoonClient = DualAuth.instance.webtoonClient;
+    if (discipline != null) {
+      _disciplineAuthSub = discipline.auth.onAuthStateChange.listen((_) {
+        _onAuthChanged();
+      });
+    }
+    if (webtoonClient != null) {
+      _webtoonAuthSub = webtoonClient.auth.onAuthStateChange.listen((_) {
+        _onAuthChanged();
+      });
+    }
+    if (_loggedIn && DualAuth.instance.disciplineLoggedIn) {
+      context.read<AppState>().syncCloud();
+    }
+  }
+
+  void _onAuthChanged() {
+    final loggedIn = DualAuth.instance.anyLoggedIn;
+    if (!mounted) return;
+    setState(() {
+      _loggedIn = loggedIn;
+      if (!loggedIn) _mode = null;
     });
+    if (loggedIn && DualAuth.instance.disciplineLoggedIn) {
+      context.read<AppState>().syncCloud();
+    }
   }
 
   @override
   void dispose() {
-    _authSub?.cancel();
+    _disciplineAuthSub?.cancel();
+    _webtoonAuthSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final downloading = LockService.instance.isKeepAwakeActive;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      context.read<AppState>().onAppPaused();
+      if (!downloading) {
+        context.read<AppState>().onAppPaused();
+      }
     } else if (state == AppLifecycleState.resumed) {
       unawaited(context.read<AppState>().onAppResumed());
-      if (_loggedIn) {
-        // 다른 기기(아이폰 등)에서 올린 단식·기록 반영
+      if (_loggedIn && DualAuth.instance.disciplineLoggedIn) {
         context.read<AppState>().syncCloud();
       }
     }
   }
 
   Future<void> _onLoggedIn() async {
-    await context.read<AppState>().syncCloud();
+    if (DualAuth.instance.disciplineLoggedIn) {
+      await context.read<AppState>().syncCloud();
+    }
     if (!mounted) return;
     setState(() => _loggedIn = true);
   }
@@ -101,30 +143,54 @@ class _DisciplineAppState extends State<DisciplineApp>
     final themeMode = appState.themeMode;
     final isDark = themeMode == ThemeMode.dark;
     final locked = appState.isLocked;
+    final auth = DualAuth.instance;
 
     Widget home;
     if (!_loggedIn) {
       home = LoginScreen(onLoggedIn: _onLoggedIn);
     } else if (locked) {
       home = const LockScreen();
+    } else if (_mode == null) {
+      home = ModePickerScreen(
+        onSelect: (mode) => setState(() => _mode = mode),
+      );
+    } else if (_mode == AppMode.discipline) {
+      home = ModeFrame(
+        title: '절제',
+        notice: auth.disciplineLoggedIn ? null : auth.disciplineError,
+        onSwitch: () => setState(() => _mode = null),
+        child: const AppShell(),
+      );
     } else {
-      home = const AppShell();
+      home = ModeFrame(
+        title: '만화',
+        notice: auth.webtoonLoggedIn
+            ? null
+            : (auth.webtoonError ?? '만화 클라우드에 로그인되어 있지 않습니다'),
+        onSwitch: () => setState(() => _mode = null),
+        child: const WebtoonApp(),
+      );
     }
 
-    return MaterialApp(
-      title: '절제',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: themeMode,
-      builder: (context, child) {
-        final palette = Theme.of(context).extension<AppPalette>() ??
-            (isDark ? AppPalette.dark : AppPalette.light);
-        AppColors.bind(palette);
-        SystemChrome.setSystemUIOverlayStyle(AppTheme.overlay(isDark));
-        return child ?? const SizedBox.shrink();
+    return ListenableBuilder(
+      listenable: auth,
+      builder: (context, _) {
+        return MaterialApp(
+          title: '절제',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: themeMode,
+          builder: (context, child) {
+            final palette = Theme.of(context).extension<AppPalette>() ??
+                (isDark ? AppPalette.dark : AppPalette.light);
+            AppColors.bind(palette);
+            SystemChrome.setSystemUIOverlayStyle(AppTheme.overlay(isDark));
+            return child ?? const SizedBox.shrink();
+          },
+          home: home,
+        );
       },
-      home: home,
     );
   }
 }

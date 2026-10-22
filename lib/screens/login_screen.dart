@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../services/supabase_sync_service.dart';
+import '../services/dual_auth.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_version.dart';
 
@@ -64,11 +63,20 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordCtrl.text;
 
     try {
-      final cloud = SupabaseSyncService.instance;
-      if (_signUpMode) {
-        await cloud.signUp(email: email, password: password);
-      } else {
-        await cloud.signIn(email: email, password: password);
+      final auth = DualAuth.instance;
+      final result = _signUpMode
+          ? await auth.signUp(email: email, password: password)
+          : await auth.signIn(email: email, password: password);
+
+      if (!result.anySuccess) {
+        setState(() {
+          _error = [
+            result.discipline.error,
+            result.webtoon.error,
+          ].whereType<String>().join('\n');
+        });
+        HapticFeedback.heavyImpact();
+        return;
       }
 
       final prefs = await SharedPreferences.getInstance();
@@ -76,32 +84,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       HapticFeedback.mediumImpact();
       await widget.onLoggedIn();
-    } on AuthException catch (e) {
-      setState(() => _error = _friendlyAuthError(e));
-      HapticFeedback.heavyImpact();
     } catch (e) {
       setState(() => _error = '로그인에 실패했습니다. 네트워크를 확인해 주세요.');
       HapticFeedback.heavyImpact();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  String _friendlyAuthError(AuthException e) {
-    final msg = e.message.toLowerCase();
-    if (msg.contains('invalid login') || msg.contains('invalid credentials')) {
-      return '이메일 또는 비밀번호가 올바르지 않습니다';
-    }
-    if (msg.contains('already registered') || msg.contains('already been')) {
-      return '이미 가입된 이메일입니다. 로그인으로 시도해 주세요';
-    }
-    if (msg.contains('password')) {
-      return '비밀번호는 6자 이상으로 입력해 주세요';
-    }
-    if (msg.contains('email')) {
-      return '이메일 형식을 확인해 주세요';
-    }
-    return e.message;
   }
 
   @override
@@ -157,8 +145,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 10),
                   Text(
                     _signUpMode
-                        ? '계정을 만들면 재설치 후에도 데이터가 유지됩니다'
-                        : '로그인하면 클라우드 데이터를 불러옵니다',
+                        ? '같은 계정으로 절제와 만화 클라우드에 가입합니다'
+                        : '같은 계정으로 절제와 만화 클라우드에 로그인합니다',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,

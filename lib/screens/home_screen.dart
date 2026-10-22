@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../services/backup_service.dart';
 import '../services/biometric_service.dart';
-import '../services/supabase_sync_service.dart';
+import '../services/dual_auth.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_version.dart';
@@ -173,13 +173,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 );
                                 if (ok == true && context.mounted) {
-                                  await SupabaseSyncService.instance.signOut();
+                                  await DualAuth.instance.signOut();
                                 }
                               }
                             },
                             itemBuilder: (ctx) {
                               final email =
-                                  SupabaseSyncService.instance.email ?? '계정';
+                                  DualAuth.instance.email ?? '계정';
                               return [
                                 PopupMenuItem(
                                   enabled: false,
