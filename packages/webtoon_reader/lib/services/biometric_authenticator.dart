@@ -28,12 +28,14 @@ class LocalAuthBiometricAuthenticator implements BiometricAuthenticator {
       final canCheck = await _auth.canCheckBiometrics;
       if (!canCheck) return BiometricKind.none;
       final types = await _auth.getAvailableBiometrics();
-      if (types.isEmpty) return BiometricKind.none;
       if (types.contains(BiometricType.face)) return BiometricKind.face;
       if (types.contains(BiometricType.fingerprint)) {
         return BiometricKind.fingerprint;
       }
-      return BiometricKind.generic;
+      if (types.isNotEmpty) return BiometricKind.generic;
+      // iPad Face ID는 전체 화면이 되기 전에 등록 목록이 비어 있다.
+      if (defaultTargetPlatform == TargetPlatform.iOS) return BiometricKind.face;
+      return BiometricKind.none;
     } catch (_) {
       return BiometricKind.none;
     }

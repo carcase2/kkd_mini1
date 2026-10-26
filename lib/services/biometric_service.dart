@@ -15,15 +15,14 @@ class BiometricService {
   /// 설정·잠금 화면에 쓸 이름 (Face ID / Touch ID / 지문)
   String get label => _label;
 
+  /// iPad는 분할 화면에서 Face ID 목록이 비어 나온다.
+  /// 하드웨어가 있으면 목록이 비어도 인증을 시도한다.
   Future<bool> isAvailable() async {
     try {
       final hardware = await _auth.canCheckBiometrics;
-      final supported = await _auth.isDeviceSupported();
-      if (!hardware && !supported) return false;
+      if (!hardware) return false;
 
       final types = await _auth.getAvailableBiometrics();
-      if (types.isEmpty) return false;
-
       _label = _labelFor(types);
       return true;
     } catch (_) {
@@ -48,6 +47,8 @@ class BiometricService {
       return await _auth.authenticate(
         localizedReason: reason ?? '$_label로 잠금을 해제하세요',
         biometricOnly: true,
+        // iPad Face ID 창이 장면을 잠깐 내리면 시스템이 인증을 취소한다.
+        persistAcrossBackgrounding: true,
       );
     } on LocalAuthException {
       return false;
