@@ -1,7 +1,7 @@
 {
-  "version": "1.1.2",
-  "build": 20,
-  "message": "저장된 만화가 빈 서재로 지워지지 않고, 만화 목록이 다시 보입니다",
+  "version": "1.1.3",
+  "build": 21,
+  "message": "만화 모드를 열면 사이트 목록이 바로 보입니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

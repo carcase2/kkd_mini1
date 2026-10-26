@@ -32,11 +32,11 @@ import '../widgets/migrate_site_dialog.dart';
 import '../widgets/series_cover.dart';
 import '../widgets/status_banner.dart';
 import '../widgets/theme_toggle_button.dart';
+import '../widgets/live_catalog.dart';
 import '../widgets/network_status_chip.dart';
 import '../services/theme_mode_service.dart';
 import '../models/chapter.dart';
 import 'series_screen.dart';
-import 'browse_catalog_screen.dart';
 import 'completed_library_screen.dart';
 import 'reader_screen.dart';
 import 'webview_reader_screen.dart';
@@ -1371,24 +1371,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<void> _openBrowseCatalog() async {
-    final existingIds = _storage.getAllSeries().map((s) => s.id).toSet();
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => BrowseCatalogScreen(
-          existingSeriesIds: existingIds,
-          onAddSeries: (url, title) async {
-            final series = await _fetcher.registerSeries(
-              url,
-              customTitle: title.isNotEmpty ? title : null,
-              bypassRunner: _bypass,
-            );
-            existingIds.add(series.id);
-            if (!mounted) return;
-            setState(() {
-              _rebuildStatsAndSort(_storage.getActiveSeries());
-              _syncMessage = '"${series.title}" 서재에 추가됨';
-            });
-          },
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('만화 찾기')),
+          body: LiveCatalog(
+            siteOrigin: _storage.siteOrigin,
+            onOpen: (work) => _addSeries(
+              AddSeriesInput(url: work.url, title: work.title),
+            ),
+          ),
         ),
       ),
     );
@@ -1780,6 +1772,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
     final visibleSeries = _visibleSeries;
     final selectedPending = _selectedPendingChapters;
+    final showCatalog = _seriesList.isEmpty &&
+        !_showFavoritesOnly &&
+        !_showEmptyChaptersOnly &&
+        _searchQuery.trim().isEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -1899,7 +1895,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               )
             : null,
       ),
-      floatingActionButton: _libraryFab(),
+      floatingActionButton: showCatalog ? null : _libraryFab(),
       // 큐 다운로드는 상단 배너/시트로, 목록 새로고침 등만 하단 진행 표시.
       bottomNavigationBar: _loading && !_queueRunning && _fetchStatus != null
           ? FetchProgressDock(status: _fetchStatus!, onCancel: _cancelFetch)
@@ -1911,7 +1907,32 @@ class _LibraryScreenState extends State<LibraryScreen> {
               onClear: _clearSelection,
             )
           : null,
-      body: RefreshIndicator(
+      body: showCatalog
+          ? Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: OfflineBanner(),
+                ),
+                if (_syncMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: StatusBanner(
+                      message: _syncMessage!,
+                      onDismiss: () => setState(() => _syncMessage = null),
+                    ),
+                  ),
+                Expanded(
+                  child: LiveCatalog(
+                    siteOrigin: _storage.siteOrigin,
+                    onOpen: (work) => _addSeries(
+                      AddSeriesInput(url: work.url, title: work.title),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : RefreshIndicator(
         onRefresh: _requestRefresh,
         child: CustomScrollView(
           controller: _scrollController,
