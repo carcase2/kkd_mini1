@@ -1999,14 +1999,25 @@ class WebViewScripts {
       el.style.setProperty('height', '0', 'important');
       el.style.setProperty('pointer-events', 'none', 'important');
     });
+    const CATALOG = 'a[href*="/webtoon/"], a[href*="/manhwa/"], a[href*="/novel/"], .card-grid, .work-card-grid, ul.ep-list, ul.ep-list-v2, #episodes';
+    function keepsCatalog(el) {
+      if (el.matches && el.matches(CATALOG)) return true;
+      return !!el.querySelector(CATALOG);
+    }
     document.querySelectorAll('div, section, aside').forEach(function(el) {
+      // 목록이 나중에 붙으면, 예전에 숨긴 칸을 다시 보여 줍니다.
+      if (keepsCatalog(el)) {
+        if (el.getAttribute('data-awr-browse-hide') === '1') {
+          el.style.removeProperty('display');
+          el.style.removeProperty('height');
+          el.style.removeProperty('pointer-events');
+          el.removeAttribute('data-awr-browse-hide');
+        }
+        return;
+      }
       const t = (el.textContent || '').slice(0, 300);
       if (!GAMBLE_RE.test(t)) return;
-      // 만화(/manhwa) 목록에는 /webtoon/ 링크가 없다.
-      // 그때 배너 문구가 들어 있는 상위 칸까지 숨기면 탭 전체가 빈 화면이 된다.
-      if (el.querySelector(
-        'a[href*="/webtoon/"], a[href*="/manhwa/"], a[href*="/novel/"], .card-grid, .work-card-grid, ul.ep-list, ul.ep-list-v2, #episodes'
-      )) return;
+      el.setAttribute('data-awr-browse-hide', '1');
       el.style.setProperty('display', 'none', 'important');
     });
   }

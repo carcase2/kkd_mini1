@@ -19,6 +19,10 @@ class SupabaseSyncService {
   bool _ready = false;
   bool get isReady => _ready && _attached != null;
 
+  /// 이 실행에서 서재가 한 번이라도 있었는지.
+  /// 재설치 직후 빈 서재가 클라우드를 덮어쓰지 못하게 합니다.
+  bool _seenNonEmptyLocal = false;
+
   SupabaseClient get _client {
     final client = _attached;
     if (client == null) {
@@ -128,6 +132,14 @@ class SupabaseSyncService {
 
   Future<bool> push(Map<String, dynamic> backupRoot) async {
     if (!_ready || !isLoggedIn) return false;
+    // 로컬이 비어 있는데 이번 실행에서 만화를 본 적이 없으면 올리지 않습니다.
+    // 자동 백업이 원격 서재를 빈 목록으로 지우던 경우입니다.
+    if (isBackupEffectivelyEmpty(backupRoot) && !_seenNonEmptyLocal) {
+      return false;
+    }
+    if (!isBackupEffectivelyEmpty(backupRoot)) {
+      _seenNonEmptyLocal = true;
+    }
     try {
       final uid = currentUser?.id;
       if (uid == null) return false;
@@ -149,6 +161,11 @@ class SupabaseSyncService {
     if (!_ready) await init();
     if (!_ready || !isLoggedIn) return false;
 
+    final localBefore = storage.exportBackup();
+    if (!isBackupEffectivelyEmpty(localBefore)) {
+      _seenNonEmptyLocal = true;
+    }
+
     final remote = await pull();
     final local = storage.exportBackup();
     final localEmpty = isBackupEffectivelyEmpty(local);
@@ -161,6 +178,7 @@ class SupabaseSyncService {
     final remoteEmpty = isBackupEffectivelyEmpty(remote.payload);
     if (localEmpty && !remoteEmpty) {
       await storage.importBackup(remote.payload);
+      _seenNonEmptyLocal = true;
       return true;
     }
     if (remoteEmpty) {

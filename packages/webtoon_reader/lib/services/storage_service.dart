@@ -47,7 +47,6 @@ class StorageService {
     _rootDir = await getApplicationDocumentsDirectory();
     await _migrateLegacyData();
     await _rewriteBlockedHostsInStorage();
-    unawaited(_autoBackupIfDue());
   }
 
   /// 이미 저장된 sbxh10 등 Host error 미러 주소를 기본 사이트로 고칩니다.
@@ -383,11 +382,17 @@ class StorageService {
   Future<bool> syncWithCloud() async {
     final cloud = SupabaseSyncService.instance;
     if (!cloud.isReady) await cloud.init();
-    if (!cloud.isReady || !cloud.isLoggedIn) return false;
+    if (!cloud.isReady || !cloud.isLoggedIn) {
+      unawaited(_autoBackupIfDue());
+      return false;
+    }
     try {
       return await cloud.syncAfterLocalLoad(this);
     } catch (_) {
       return false;
+    } finally {
+      // 클라우드를 먼저 받은 뒤에만 자동 백업이 빈 서재를 올리지 않습니다.
+      unawaited(_autoBackupIfDue());
     }
   }
 

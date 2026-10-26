@@ -2089,6 +2089,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: _EmptyLibrary(
+                  cloudMissing: !SupabaseSyncService.instance.isLoggedIn,
                   onAdd: _showAddDialog,
                   onBrowse: _openBrowseCatalog,
                 ),
@@ -2282,8 +2283,13 @@ class _LibrarySummaryBar extends StatelessWidget {
 }
 
 class _EmptyLibrary extends StatelessWidget {
-  const _EmptyLibrary({required this.onAdd, required this.onBrowse});
+  const _EmptyLibrary({
+    required this.cloudMissing,
+    required this.onAdd,
+    required this.onBrowse,
+  });
 
+  final bool cloudMissing;
   final VoidCallback onAdd;
   final VoidCallback onBrowse;
 
@@ -2297,14 +2303,16 @@ class _EmptyLibrary extends StatelessWidget {
           Icon(Icons.auto_stories_outlined, size: 64, color: scheme.outline),
           const SizedBox(height: 16),
           Text(
-            '아직 만화가 없어요',
+            cloudMissing ? '만화 서재를 불러오지 못했어요' : '아직 만화가 없어요',
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           Text(
-            '만화 찾기 또는 링크로 추가해 보세요',
+            cloudMissing
+                ? '만화 클라우드에 로그인되어 있지 않습니다. 모드 화면에서 만화 로그인을 다시 해 주세요.'
+                : '만화 찾기 또는 링크로 추가해 보세요',
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
