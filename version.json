@@ -1,7 +1,7 @@
 {
-  "version": "1.0.12",
-  "build": 17,
-  "message": "홈에서 오늘 할 일이 먼저 보이고, 하단 탭 이름이 항상 나옵니다",
+  "version": "1.1.0",
+  "build": 18,
+  "message": "로그인 하나에서 절제와 만화를 고르고, 앱 이름이 kkd로 바뀝니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",
