@@ -217,8 +217,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
           for (final series in _seriesList)
             if (series.id != excludeId && _recentAt(series) != null) series,
         ]..sort((a, b) {
-          final at = _recentAt(a)!;
-          final bt = _recentAt(b)!;
+          final aRead = _statsFor(a.id).lastReadAt;
+          final bRead = _statsFor(b.id).lastReadAt;
+          if (aRead != null && bRead == null) return -1;
+          if (aRead == null && bRead != null) return 1;
+          final at = aRead ?? a.addedAt!;
+          final bt = bRead ?? b.addedAt!;
           return bt.compareTo(at);
         });
     if (ranked.length <= limit) return ranked;
@@ -1644,6 +1648,31 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return null;
   }
 
+  Widget? _continueBanner() {
+    final cont = _globalContinueTarget();
+    if (cont == null) return null;
+    final canOpen = !_loading && !_hasSelection;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: _ContinueReadingBanner(
+        series: cont.series,
+        chapter: cont.chapter,
+        nextAfterCompleted: cont.nextAfterCompleted,
+        enabled: canOpen,
+        onContinue: () => unawaited(_continueReading()),
+        onOpenSeries: () => unawaited(_openSeries(cont.series)),
+      ),
+    );
+  }
+
+  void _openRecent(Series series) {
+    if (_statsFor(series.id).lastReadAt != null) {
+      unawaited(_continueReading(series: series));
+      return;
+    }
+    unawaited(_openSeries(series));
+  }
+
   void _toggleSeriesSelection(Series series) {
     setState(() {
       if (_selectedSeriesIds.contains(series.id)) {
@@ -1962,6 +1991,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                 setState(() => _syncMessage = null),
                           ),
                         ),
+                      ?_continueBanner(),
                       Expanded(
                         child: LiveCatalog(
                           key: const ValueKey('site-catalog'),
@@ -2031,8 +2061,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               chapterNumber: (series) =>
                                   _statsFor(series.id).lastReadChapterNumber,
                               enabled: canOpen,
-                              onOpen: (series) =>
-                                  unawaited(_continueReading(series: series)),
+                              onOpen: _openRecent,
                               onOpenSeries: (series) =>
                                   unawaited(_openSeries(series)),
                             ),

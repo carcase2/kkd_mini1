@@ -1,7 +1,7 @@
 {
-  "version": "1.1.6",
-  "build": 24,
-  "message": "만화를 골라도 목록이 남고, 고른 만화는 최근과 즐겨찾기에 보입니다",
+  "version": "1.1.7",
+  "build": 25,
+  "message": "만화 목록에서도 이어서 읽기가 됩니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",
