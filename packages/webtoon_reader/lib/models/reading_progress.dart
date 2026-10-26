@@ -27,6 +27,24 @@ class ReadingProgress {
   /// 페이지 기반 복원이 가능한지.
   bool get hasPageAnchor => pageIndex != null && pageIndex! >= 0;
 
+  /// 맨 위를 연 기록은 이어 읽기로 치지 않습니다.
+  bool get isMeaningful => ReadingProgress.isMeaningfulMap({
+        'completed': completed,
+        'scrollOffset': scrollOffset,
+        'pageIndex': pageIndex,
+        'pageFraction': pageFraction,
+      });
+
+  static bool isMeaningfulMap(Map<dynamic, dynamic> raw) {
+    if (raw['completed'] == true) return true;
+    final offset = (raw['scrollOffset'] as num?)?.toDouble() ?? 0;
+    if (offset > 8) return true;
+    final page = (raw['pageIndex'] as num?)?.toInt() ?? 0;
+    if (page > 0) return true;
+    final fraction = (raw['pageFraction'] as num?)?.toDouble() ?? 0;
+    return fraction > 0.02;
+  }
+
   /// 같은 읽기 위치인지. 회차를 다시 열 때 updatedAt을 올리지 않기 위해 씁니다.
   bool isSameAnchor(ReadingProgress other, {double offsetSlop = 8}) {
     if (chapterId != other.chapterId) return false;

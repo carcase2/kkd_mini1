@@ -204,6 +204,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  String? _cloudContinueNote() {
+    if (_globalContinueTarget() != null) return null;
+    switch (SupabaseSyncService.instance.lastStatus) {
+      case WebtoonSyncStatus.pullFailed:
+        return '클라우드에 저장된 이어 읽기를 불러오지 못했습니다. 아래로 당겨 다시 시도해 주세요.';
+      case WebtoonSyncStatus.remoteEmpty:
+      case WebtoonSyncStatus.notLoggedIn:
+        return '이 계정에는 저장된 이어 읽기가 없습니다. 예전에 쓰던 만화 계정으로 다시 로그인해 주세요.';
+      case WebtoonSyncStatus.applied:
+      case WebtoonSyncStatus.unchanged:
+        return null;
+    }
+  }
+
   DateTime? _recentAt(Series series) =>
       _statsFor(series.id).lastReadAt ?? series.addedAt;
 
@@ -251,7 +265,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
       _wifiOnly = _storage.wifiOnlyDownload;
       _lastBackupAt = backupInfo?.createdAt;
       _lastBackupSeriesCount = backupInfo?.seriesCount;
-      if (active.isEmpty && completedCount > 0) {
+      final cloudNote = _cloudContinueNote();
+      if (cloudNote != null) {
+        _syncMessage = cloudNote;
+      } else if (active.isEmpty && completedCount > 0) {
         _syncMessage = '완료한 만화 $completedCount개가 있습니다. 상단 메뉴에서 확인해 주세요.';
       }
     });
@@ -853,9 +870,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _syncMessage = applied
-            ? '목록·읽기 위치만 맞췄습니다. 만화 이미지는 저장하기와 별개입니다.'
-            : '목록·읽기 위치만 올렸습니다. 만화 파일은 저장하기/클라우드에 올리기로 저장됩니다.';
+        _syncMessage = _cloudContinueNote() ??
+            (applied
+                ? '목록·읽기 위치만 맞췄습니다. 만화 이미지는 저장하기와 별개입니다.'
+                : '목록·읽기 위치만 올렸습니다. 만화 파일은 저장하기/클라우드에 올리기로 저장됩니다.');
       });
     } catch (e) {
       if (!mounted) return;

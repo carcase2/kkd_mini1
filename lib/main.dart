@@ -14,6 +14,7 @@ import 'screens/lock_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/mode_picker_screen.dart';
 import 'screens/shell.dart';
+import 'screens/webtoon_cloud_gate.dart';
 import 'services/biometric_service.dart';
 import 'services/dual_auth.dart';
 import 'services/notification_service.dart';
@@ -169,11 +170,10 @@ class _DisciplineAppState extends State<DisciplineApp>
     } else {
       home = ModeFrame(
         title: '만화',
-        notice: auth.webtoonLoggedIn
-            ? null
-            : (auth.webtoonError ?? '만화 클라우드에 로그인되어 있지 않습니다'),
         onSwitch: () => setState(() => _mode = null),
-        child: const WebtoonApp(),
+        child: auth.webtoonLoggedIn
+            ? const WebtoonApp()
+            : const WebtoonCloudGate(),
       );
     }
 

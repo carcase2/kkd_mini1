@@ -1,8 +1,18 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../utils/backup_merge.dart';
 import 'storage_service.dart';
+
+enum WebtoonSyncStatus {
+  applied,
+  unchanged,
+  notLoggedIn,
+  pullFailed,
+  remoteEmpty,
+}
 
 /// 이메일 로그인 사용자별 webtoon_app_data JSON 동기화.
 /// 클라이언트는 껍데기 앱이 attach 합니다. Supabase.initialize 는 쓰지 않습니다.
@@ -22,6 +32,9 @@ class SupabaseSyncService {
   /// 이 실행에서 서재가 한 번이라도 있었는지.
   /// 재설치 직후 빈 서재가 클라우드를 덮어쓰지 못하게 합니다.
   bool _seenNonEmptyLocal = false;
+
+  WebtoonSyncStatus lastStatus = WebtoonSyncStatus.notLoggedIn;
+  bool _pullFailed = false;
 
   SupabaseClient get _client {
     final client = _attached;
@@ -102,8 +115,10 @@ class SupabaseSyncService {
     await _client.auth.signOut();
   }
 
-  /// 원격 payload와 updated_at. 없으면 null.
+  /// 원격 payload와 updated_at. 행이 없으면 null.
+  /// 조회 실패는 [_pullFailed] 로 구분해서 빈 서재로 올리지 않습니다.
   Future<({Map<String, dynamic> payload, DateTime updatedAt})?> pull() async {
+    _pullFailed = false;
     if (!_ready || !isLoggedIn) return null;
     try {
       final uid = currentUser?.id;
@@ -116,18 +131,34 @@ class SupabaseSyncService {
           .maybeSingle();
 
       if (row == null) return null;
-      final raw = row['payload'];
-      if (raw is! Map) return null;
+      final payload = _payloadMap(row['payload']);
+      if (payload == null) {
+        _pullFailed = true;
+        return null;
+      }
       final updatedAt = DateTime.tryParse('${row['updated_at']}')?.toUtc() ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
       return (
-        payload: Map<String, dynamic>.from(raw),
+        payload: payload,
         updatedAt: updatedAt,
       );
     } catch (e, st) {
       debugPrint('Supabase pull failed: $e\n$st');
+      _pullFailed = true;
       return null;
     }
+  }
+
+  Map<String, dynamic>? _payloadMap(dynamic raw) {
+    if (raw is String && raw.isNotEmpty) {
+      try {
+        raw = jsonDecode(raw);
+      } catch (_) {
+        return null;
+      }
+    }
+    if (raw is! Map) return null;
+    return Map<String, dynamic>.from(raw);
   }
 
   Future<bool> push(Map<String, dynamic> backupRoot) async {
@@ -159,7 +190,10 @@ class SupabaseSyncService {
   /// 로컬·원격을 회차 단위로 합칩니다. 읽기 위치가 바뀌면 true.
   Future<bool> syncAfterLocalLoad(StorageService storage) async {
     if (!_ready) await init();
-    if (!_ready || !isLoggedIn) return false;
+    if (!_ready || !isLoggedIn) {
+      lastStatus = WebtoonSyncStatus.notLoggedIn;
+      return false;
+    }
 
     final localBefore = storage.exportBackup();
     if (!isBackupEffectivelyEmpty(localBefore)) {
@@ -170,20 +204,28 @@ class SupabaseSyncService {
     final local = storage.exportBackup();
     final localEmpty = isBackupEffectivelyEmpty(local);
 
-    if (remote == null) {
-      if (!localEmpty) await push(local);
+    if (_pullFailed) {
+      lastStatus = WebtoonSyncStatus.pullFailed;
       return false;
     }
 
-    final remoteEmpty = isBackupEffectivelyEmpty(remote.payload);
-    if (localEmpty && !remoteEmpty) {
+    if (remote == null || isBackupEffectivelyEmpty(remote.payload)) {
+      if (shouldUploadLocalShelf(
+        pullFailed: false,
+        remoteMissing: true,
+        localEmpty: localEmpty,
+      )) {
+        await push(local);
+      }
+      lastStatus = WebtoonSyncStatus.remoteEmpty;
+      return false;
+    }
+
+    if (localEmpty) {
       await storage.importBackup(remote.payload);
       _seenNonEmptyLocal = true;
+      lastStatus = WebtoonSyncStatus.applied;
       return true;
-    }
-    if (remoteEmpty) {
-      if (!localEmpty) await push(local);
-      return false;
     }
 
     final merged = mergeWebtoonBackups(local, remote.payload);
@@ -192,6 +234,8 @@ class SupabaseSyncService {
       await storage.importBackup(merged);
     }
     await push(merged);
+    lastStatus =
+        reload ? WebtoonSyncStatus.applied : WebtoonSyncStatus.unchanged;
     return reload;
   }
 }

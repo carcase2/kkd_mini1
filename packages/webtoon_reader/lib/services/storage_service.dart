@@ -389,6 +389,7 @@ class StorageService {
     try {
       return await cloud.syncAfterLocalLoad(this);
     } catch (_) {
+      cloud.lastStatus = WebtoonSyncStatus.pullFailed;
       return false;
     } finally {
       // 클라우드를 먼저 받은 뒤에만 자동 백업이 빈 서재를 올리지 않습니다.
@@ -801,20 +802,41 @@ class StorageService {
     return lastAt;
   }
 
-  /// 가장 최근에 연 회차.
+  /// 클라우드에 저장된 마지막 회차를 우선합니다.
+  /// 그 다음으로 실제로 읽은 기록, 없으면 가장 최근에 연 회차입니다.
   Chapter? getLastReadChapter(String seriesId) {
     final chapters = getChapters(seriesId);
-    Chapter? lastChapter;
-    DateTime? lastAt;
+    final byId = {for (final chapter in chapters) chapter.id: chapter};
+
+    if (lastSeriesId == seriesId && lastChapterId != null) {
+      final pinned = byId[lastChapterId];
+      final pinnedProgress =
+          pinned == null ? null : getProgress(seriesId, pinned.id);
+      if (pinned != null &&
+          pinnedProgress != null &&
+          pinnedProgress.isMeaningful) {
+        return pinned;
+      }
+    }
+
+    Chapter? meaningful;
+    DateTime? meaningfulAt;
+    Chapter? any;
+    DateTime? anyAt;
     for (final chapter in chapters) {
       final progress = getProgress(seriesId, chapter.id);
       if (progress == null) continue;
-      if (lastAt == null || progress.updatedAt.isAfter(lastAt)) {
-        lastAt = progress.updatedAt;
-        lastChapter = chapter;
+      if (anyAt == null || progress.updatedAt.isAfter(anyAt)) {
+        anyAt = progress.updatedAt;
+        any = chapter;
+      }
+      if (!progress.isMeaningful) continue;
+      if (meaningfulAt == null || progress.updatedAt.isAfter(meaningfulAt)) {
+        meaningfulAt = progress.updatedAt;
+        meaningful = chapter;
       }
     }
-    return lastChapter;
+    return meaningful ?? any;
   }
 
   bool get pickedFavoritesSeeded => _meta.get('pickedFavoritesSeeded') == true;

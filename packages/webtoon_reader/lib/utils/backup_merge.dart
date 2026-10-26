@@ -18,6 +18,24 @@ bool isBackupEffectivelyEmpty(Map<String, dynamic> root) {
   if (series is List && series.isNotEmpty) return false;
   final chapters = root['chapters'];
   if (chapters is Map && chapters.isNotEmpty) return false;
+  final progress = root['progress'];
+  if (progress is Map && progress.isNotEmpty) return false;
+  final meta = root['meta'];
+  if (meta is Map) {
+    final seriesId = meta['lastSeriesId']?.toString() ?? '';
+    final chapterId = meta['lastChapterId']?.toString() ?? '';
+    if (seriesId.isNotEmpty && chapterId.isNotEmpty) return false;
+  }
+  return true;
+}
+
+/// 원격 조회가 실패하면 빈 서재로 보고 로컬을 올리지 않습니다.
+bool shouldUploadLocalShelf({
+  required bool pullFailed,
+  required bool remoteMissing,
+  required bool localEmpty,
+}) {
+  if (pullFailed || localEmpty || !remoteMissing) return false;
   return true;
 }
 
@@ -327,13 +345,7 @@ void _applyLastReadFromProgress(
 }
 
 bool _isMeaningfulProgress(Map<String, dynamic> raw) {
-  if (raw['completed'] == true) return true;
-  final offset = (raw['scrollOffset'] as num?)?.toDouble() ?? 0;
-  if (offset > 8) return true;
-  final page = (raw['pageIndex'] as num?)?.toInt() ?? 0;
-  if (page > 0) return true;
-  final fraction = (raw['pageFraction'] as num?)?.toDouble() ?? 0;
-  return fraction > 0.02;
+  return ReadingProgress.isMeaningfulMap(raw);
 }
 
 Map<String, dynamic> _asStringKeyedMap(dynamic raw) {
