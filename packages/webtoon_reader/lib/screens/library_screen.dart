@@ -71,6 +71,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String _searchQuery = '';
   bool _showEmptyChaptersOnly = false;
   bool _showFavoritesOnly = false;
+
+  /// 사이트 목록. 만화를 하나 골라도 이 화면을 서재 한 권으로 바꾸지 않습니다.
+  bool _showSiteCatalog = true;
   DateTime? _lastBackupAt;
   int? _lastBackupSeriesCount;
   final List<_SeriesDownloadJob> _downloadJobs = [];
@@ -205,16 +208,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  DateTime? _recentAt(Series series) =>
+      _statsFor(series.id).lastReadAt ?? series.addedAt;
+
   List<Series> _recentSeries({String? excludeId, int limit = 8}) {
     final ranked =
         <Series>[
           for (final series in _seriesList)
-            if (series.id != excludeId &&
-                _statsFor(series.id).lastReadAt != null)
-              series,
+            if (series.id != excludeId && _recentAt(series) != null) series,
         ]..sort((a, b) {
-          final at = _statsFor(a.id).lastReadAt!;
-          final bt = _statsFor(b.id).lastReadAt!;
+          final at = _recentAt(a)!;
+          final bt = _recentAt(b)!;
           return bt.compareTo(at);
         });
     if (ranked.length <= limit) return ranked;
@@ -235,6 +239,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _pendingReconcileSeriesId = null;
 
     // UI를 먼저 그리고, reconcile은 백그라운드로 돌립니다.
+    if (!mounted) return;
+    await _seedPickedFavorites();
     if (!mounted) return;
     final active = _storage.getActiveSeries();
     final completedCount = _storage.getCompletedSeries().length;
@@ -1371,20 +1377,28 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<void> _openBrowseCatalog() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('만화 찾기')),
-          body: LiveCatalog(
-            siteOrigin: _storage.siteOrigin,
-            onOpen: (work) => _addSeries(
-              AddSeriesInput(url: work.url, title: work.title),
-            ),
-          ),
-        ),
-      ),
-    );
-    _reload();
+    if (!mounted) return;
+    setState(() => _showSiteCatalog = true);
+  }
+
+  /// 목록에서 고른 만화는 즐겨찾기에 남깁니다.
+  /// 이미 고른 만화가 즐겨찾기에 없으면 한 번만 같은 방식으로 넣습니다.
+  Future<void> _seedPickedFavorites() async {
+    if (_storage.pickedFavoritesSeeded) return;
+    final active = _storage.getActiveSeries();
+    if (active.isEmpty) return;
+    if (active.every((series) => !series.isFavorite) && active.length <= 8) {
+      for (final series in active) {
+        await _storage.upsertSeries(series.copyWith(isFavorite: true));
+      }
+    }
+    await _storage.markPickedFavoritesSeeded();
+  }
+
+  Future<void> _rememberPickedSeries(Series series) async {
+    if (series.isFavorite) return;
+    await _storage.upsertSeries(series.copyWith(isFavorite: true));
+    await _storage.markPickedFavoritesSeeded();
   }
 
   Future<void> _addSeries(AddSeriesInput input) async {
@@ -1409,6 +1423,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             : null,
         bypassRunner: _bypass,
       );
+      if (!mounted) return;
+      await _rememberPickedSeries(series);
       if (!mounted) return;
 
       setState(() {
@@ -1772,10 +1788,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
     final visibleSeries = _visibleSeries;
     final selectedPending = _selectedPendingChapters;
-    final showCatalog = _seriesList.isEmpty &&
-        !_showFavoritesOnly &&
-        !_showEmptyChaptersOnly &&
-        _searchQuery.trim().isEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -1895,7 +1907,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               )
             : null,
       ),
-      floatingActionButton: showCatalog ? null : _libraryFab(),
+      floatingActionButton: _showSiteCatalog ? null : _libraryFab(),
       // 큐 다운로드는 상단 배너/시트로, 목록 새로고침 등만 하단 진행 표시.
       bottomNavigationBar: _loading && !_queueRunning && _fetchStatus != null
           ? FetchProgressDock(status: _fetchStatus!, onCancel: _cancelFetch)
@@ -1907,32 +1919,61 @@ class _LibraryScreenState extends State<LibraryScreen> {
               onClear: _clearSelection,
             )
           : null,
-      body: showCatalog
-          ? Column(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: OfflineBanner(),
-                ),
-                if (_syncMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: StatusBanner(
-                      message: _syncMessage!,
-                      onDismiss: () => setState(() => _syncMessage = null),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SegmentedButton<bool>(
+                showSelectedIcon: false,
+                segments: [
+                  const ButtonSegment(value: true, label: Text('만화 목록')),
+                  ButtonSegment(
+                    value: false,
+                    label: Text(
+                      _seriesList.isEmpty
+                          ? '내 서재'
+                          : '내 서재 ${_seriesList.length}',
                     ),
                   ),
-                Expanded(
-                  child: LiveCatalog(
-                    siteOrigin: _storage.siteOrigin,
-                    onOpen: (work) => _addSeries(
-                      AddSeriesInput(url: work.url, title: work.title),
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : RefreshIndicator(
+                ],
+                selected: {_showSiteCatalog},
+                onSelectionChanged: (next) {
+                  setState(() => _showSiteCatalog = next.first);
+                },
+              ),
+            ),
+          ),
+          Expanded(
+            child: _showSiteCatalog
+                ? Column(
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
+                        child: OfflineBanner(),
+                      ),
+                      if (_syncMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                          child: StatusBanner(
+                            message: _syncMessage!,
+                            onDismiss: () =>
+                                setState(() => _syncMessage = null),
+                          ),
+                        ),
+                      Expanded(
+                        child: LiveCatalog(
+                          key: const ValueKey('site-catalog'),
+                          siteOrigin: _storage.siteOrigin,
+                          onOpen: (work) => _addSeries(
+                            AddSeriesInput(url: work.url, title: work.title),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : RefreshIndicator(
         onRefresh: _requestRefresh,
         child: CustomScrollView(
           controller: _scrollController,
@@ -2151,6 +2192,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
           ],
         ),
+      ),
+          ),
+        ],
       ),
     );
   }
@@ -2778,7 +2822,7 @@ class _RecentReadRail extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '최근 본 작품',
+          '최근',
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
             fontWeight: FontWeight.w800,
             letterSpacing: -0.2,

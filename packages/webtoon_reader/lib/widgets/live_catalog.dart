@@ -10,7 +10,7 @@ import '../utils/site_url.dart';
 
 enum _CatalogLane { manhwa, webtoon }
 
-/// 서재가 비어 있을 때 사이트 목록을 앱 안에 바로 보여 줍니다.
+/// 만화 목록 탭에서 사이트 만화를 앱 안에 바로 보여 줍니다.
 class LiveCatalog extends StatefulWidget {
   const LiveCatalog({
     super.key,

@@ -1,7 +1,7 @@
 {
-  "version": "1.1.5",
-  "build": 23,
-  "message": "아이패드 얼굴 인식이 만화 앱과 같이 잠금을 해제합니다",
+  "version": "1.1.6",
+  "build": 24,
+  "message": "만화를 골라도 목록이 남고, 고른 만화는 최근과 즐겨찾기에 보입니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

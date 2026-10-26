@@ -817,6 +817,12 @@ class StorageService {
     return lastChapter;
   }
 
+  bool get pickedFavoritesSeeded => _meta.get('pickedFavoritesSeeded') == true;
+
+  Future<void> markPickedFavoritesSeeded() async {
+    await _meta.put('pickedFavoritesSeeded', true);
+  }
+
   LibrarySortMode get librarySortMode =>
       LibrarySortMode.tryParse(_meta.get('librarySortMode') as String?) ??
       LibrarySortMode.recentlyRead;
