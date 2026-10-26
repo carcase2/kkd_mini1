@@ -39,15 +39,32 @@ class BiometricService {
     return '생체 인증';
   }
 
+  /// 얼굴 인식 창이 떠 있는 동안 true.
+  /// 아이패드는 이 창 때문에 앱이 잠깐 백그라운드로 간다.
+  bool get isAuthenticating => _inFlight != null;
+
+  Future<bool>? _inFlight;
+
   /// 성공 시 true. 취소·실패·미지원은 false.
-  Future<bool> authenticate({String? reason}) async {
+  ///
+  /// apartment_webtoon_reader 의 잠금과 같다. 인증 직전에 가능 여부를
+  /// 다시 물어 프롬프트를 건너뛰지 않고, 화면이 다시 만들어져도
+  /// 진행 중인 인증을 공유한다.
+  Future<bool> authenticate({String? reason}) {
+    final current = _inFlight;
+    if (current != null) return current;
+    final run = _authenticate(reason: reason);
+    _inFlight = run;
+    return run.whenComplete(() {
+      if (identical(_inFlight, run)) _inFlight = null;
+    });
+  }
+
+  Future<bool> _authenticate({String? reason}) async {
     try {
-      final available = await isAvailable();
-      if (!available) return false;
       return await _auth.authenticate(
-        localizedReason: reason ?? '$_label로 잠금을 해제하세요',
+        localizedReason: reason ?? '앱 잠금을 해제하려면 인증하세요',
         biometricOnly: true,
-        // iPad Face ID 창이 장면을 잠깐 내리면 시스템이 인증을 취소한다.
         persistAcrossBackgrounding: true,
       );
     } on LocalAuthException {

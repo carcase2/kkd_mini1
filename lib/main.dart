@@ -14,6 +14,7 @@ import 'screens/lock_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/mode_picker_screen.dart';
 import 'screens/shell.dart';
+import 'services/biometric_service.dart';
 import 'services/dual_auth.dart';
 import 'services/notification_service.dart';
 import 'services/supabase_sync_service.dart';
@@ -94,6 +95,9 @@ class _DisciplineAppState extends State<DisciplineApp>
   }
 
   void _onAuthChanged() {
+    // 아이패드 Face ID 창은 세션 갱신을 일으킨다. 그때 트리를 다시
+    // 그리면 진행 중인 얼굴 인식이 끊긴다.
+    if (BiometricService.instance.isAuthenticating) return;
     final loggedIn = DualAuth.instance.anyLoggedIn;
     if (!mounted) return;
     setState(() {
@@ -115,6 +119,7 @@ class _DisciplineAppState extends State<DisciplineApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (BiometricService.instance.isAuthenticating) return;
     final downloading = LockService.instance.isKeepAwakeActive;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {

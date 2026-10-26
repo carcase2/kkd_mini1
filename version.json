@@ -1,7 +1,7 @@
 {
-  "version": "1.1.4",
-  "build": 22,
-  "message": "아이패드에서 Face ID로 잠금을 해제할 수 있습니다",
+  "version": "1.1.5",
+  "build": 23,
+  "message": "아이패드 얼굴 인식이 만화 앱과 같이 잠금을 해제합니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

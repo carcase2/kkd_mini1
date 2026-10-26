@@ -29,11 +29,12 @@ class _LockScreenState extends State<LockScreen>
   bool _biometricAvailable = false;
   String _biometricLabel = 'Face ID';
   bool _authenticating = false;
-  bool _wasBackgrounded = false;
+  AppLifecycleState? _lifecycle;
 
   @override
   void initState() {
     super.initState();
+    _lifecycle = WidgetsBinding.instance.lifecycleState;
     WidgetsBinding.instance.addObserver(this);
     _shake = AnimationController(
       vsync: this,
@@ -47,20 +48,18 @@ class _LockScreenState extends State<LockScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(BiometricService.instance.cancel());
+    // 얼굴 인식 창이 앱을 내리면 잠금 화면이 지워질 수 있다.
+    // 여기서 인증을 취소하면 아이패드 Face ID가 바로 실패한다.
     _shake.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
-      _wasBackgrounded = true;
-    } else if (state == AppLifecycleState.resumed &&
-        _wasBackgrounded &&
-        !_authenticating) {
-      _wasBackgrounded = false;
+    final wasBackground = _lifecycle == AppLifecycleState.paused ||
+        _lifecycle == AppLifecycleState.hidden;
+    _lifecycle = state;
+    if (state == AppLifecycleState.resumed && wasBackground) {
       unawaited(_prepareBiometric(autoPrompt: true));
     }
   }
@@ -92,15 +91,14 @@ class _LockScreenState extends State<LockScreen>
       _error = null;
     });
     final ok = await BiometricService.instance.authenticate(
-      reason: '$_biometricLabel로 잠금을 해제하세요',
+      reason: '앱 잠금을 해제하려면 인증하세요',
     );
-    if (!mounted) return;
-    setState(() => _authenticating = false);
     if (ok) {
       HapticFeedback.mediumImpact();
       app.unlockWithBiometric();
-      return;
     }
+    if (!mounted) return;
+    setState(() => _authenticating = false);
   }
 
   static const _maxPinLen = 12;
