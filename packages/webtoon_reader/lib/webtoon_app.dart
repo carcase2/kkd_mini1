@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'navigation/app_route_observer.dart';
 import 'screens/library_screen.dart';
+import 'services/connectivity_service.dart';
 import 'services/storage_service.dart';
 import 'services/supabase_sync_service.dart';
 import 'services/theme_mode_service.dart';
@@ -44,6 +45,7 @@ class _WebtoonAppState extends State<WebtoonApp> with WidgetsBindingObserver {
   Future<void> _boot() async {
     try {
       await StorageService.instance.init();
+      await ConnectivityService.instance.init();
       ThemeModeService.instance.load();
       final applied = await StorageService.instance.syncWithCloud();
       if (!mounted) return;

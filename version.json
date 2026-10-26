@@ -1,7 +1,7 @@
 {
-  "version": "1.1.0",
-  "build": 18,
-  "message": "로그인 하나에서 절제와 만화를 고르고, 앱 이름이 kkd로 바뀝니다",
+  "version": "1.1.1",
+  "build": 19,
+  "message": "만화 탭에서 목록이 보이고, 저장하지 않은 회차도 열립니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

@@ -85,8 +85,10 @@ class Series {
   static String idFromUrl(String url) {
     final uri = Uri.parse(url);
     final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-    if (segments.length >= 2 && segments.first == 'webtoon') {
-      return segments[1];
+    if (segments.length >= 2 &&
+        (segments.first == 'webtoon' || segments.first == 'manhwa')) {
+      final id = segments[1];
+      return segments.first == 'manhwa' ? 'mh-$id' : id;
     }
     return segments.isNotEmpty ? segments.last : url.hashCode.toString();
   }
@@ -102,8 +104,9 @@ class Series {
       path = path.substring(0, path.length - 1);
     }
     final segments = path.split('/').where((s) => s.isNotEmpty).toList();
-    if (segments.length > 2 && segments.first == 'webtoon') {
-      path = '/webtoon/${segments[1]}';
+    if (segments.length > 2 &&
+        (segments.first == 'webtoon' || segments.first == 'manhwa')) {
+      path = '/${segments.first}/${segments[1]}';
     }
     return Uri(
       scheme: uri.scheme.isEmpty ? 'https' : uri.scheme,
@@ -118,12 +121,15 @@ class Series {
     final uri = Uri.tryParse(chapterUrl);
     if (uri == null || uri.host.isEmpty) return null;
     final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-    if (segments.length < 3 || segments.first != 'webtoon') return null;
+    if (segments.length < 3 ||
+        (segments.first != 'webtoon' && segments.first != 'manhwa')) {
+      return null;
+    }
     return Uri(
       scheme: uri.scheme,
       host: uri.host,
       port: uri.hasPort ? uri.port : null,
-      path: '/webtoon/${segments[1]}',
+      path: '/${segments.first}/${segments[1]}',
     ).toString();
   }
 

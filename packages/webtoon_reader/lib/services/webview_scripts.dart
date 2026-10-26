@@ -2001,9 +2001,13 @@ class WebViewScripts {
     });
     document.querySelectorAll('div, section, aside').forEach(function(el) {
       const t = (el.textContent || '').slice(0, 300);
-      if (GAMBLE_RE.test(t) && !el.querySelector('a[href*="/webtoon/"]')) {
-        el.style.setProperty('display', 'none', 'important');
-      }
+      if (!GAMBLE_RE.test(t)) return;
+      // 만화(/manhwa) 목록에는 /webtoon/ 링크가 없다.
+      // 그때 배너 문구가 들어 있는 상위 칸까지 숨기면 탭 전체가 빈 화면이 된다.
+      if (el.querySelector(
+        'a[href*="/webtoon/"], a[href*="/manhwa/"], a[href*="/novel/"], .card-grid, .work-card-grid, ul.ep-list, ul.ep-list-v2, #episodes'
+      )) return;
+      el.style.setProperty('display', 'none', 'important');
     });
   }
 
@@ -2076,10 +2080,11 @@ class WebViewScripts {
       var path = u.pathname;
       if (path.endsWith('/')) path = path.slice(0, -1);
       const parts = path.split('/').filter(function(p) { return !!p; });
-      if (parts.length < 2 || parts[0] !== 'webtoon') return '';
+      if (parts.length < 2 || (parts[0] !== 'webtoon' && parts[0] !== 'manhwa')) return '';
+      if (parts[1] === 'updates' || parts[1] === 'new') return '';
       var id = parts[1];
-      if (anchor) id = seriesIdFromCard(anchor, id);
-      return u.origin + '/webtoon/' + id;
+      if (anchor && parts[0] === 'webtoon') id = seriesIdFromCard(anchor, id);
+      return u.origin + '/' + parts[0] + '/' + id;
     } catch (e) { return ''; }
   }
 
@@ -2118,7 +2123,7 @@ class WebViewScripts {
 
   const seen = new Set();
   const series = [];
-  document.querySelectorAll('a[href*="/webtoon/"]').forEach(function(a) {
+  document.querySelectorAll('a[href*="/webtoon/"], a[href*="/manhwa/"]').forEach(function(a) {
     const url = normalizeUrl(a.getAttribute('href') || a.href, a);
     if (!url || seen.has(url)) return;
     const title = titleFromAnchor(a);
@@ -2211,10 +2216,11 @@ class WebViewScripts {
       var path = u.pathname;
       if (path.endsWith('/')) path = path.slice(0, -1);
       const parts = path.split('/').filter(function(p) { return !!p; });
-      if (parts.length < 2 || parts[0] !== 'webtoon') return '';
+      if (parts.length < 2 || (parts[0] !== 'webtoon' && parts[0] !== 'manhwa')) return '';
+      if (parts[1] === 'updates' || parts[1] === 'new') return '';
       var id = parts[1];
-      if (anchor) id = seriesIdFromCard(anchor, id);
-      return u.origin + '/webtoon/' + id;
+      if (anchor && parts[0] === 'webtoon') id = seriesIdFromCard(anchor, id);
+      return u.origin + '/' + parts[0] + '/' + id;
     } catch (e) { return ''; }
   }
 
@@ -2232,7 +2238,9 @@ class WebViewScripts {
       var path = new URL(url).pathname;
       if (path.endsWith('/')) path = path.slice(0, -1);
       const parts = path.split('/').filter(function(p) { return !!p; });
-      if (parts.length >= 2 && parts[0] === 'webtoon') return parts[1];
+      if (parts.length >= 2 && (parts[0] === 'webtoon' || parts[0] === 'manhwa')) {
+        return parts[0] === 'manhwa' ? ('mh-' + parts[1]) : parts[1];
+      }
     } catch (e) {}
     return '';
   }
@@ -2260,7 +2268,7 @@ class WebViewScripts {
 
   function injectBrowseAddButtons() {
     const seen = new Set();
-    document.querySelectorAll('a[href*="/webtoon/"]').forEach(function(a) {
+    document.querySelectorAll('a[href*="/webtoon/"], a[href*="/manhwa/"]').forEach(function(a) {
       const url = normalizeUrl(a.getAttribute('href') || a.href);
       if (!url || seen.has(url)) return;
       const title = titleFromAnchor(a);
