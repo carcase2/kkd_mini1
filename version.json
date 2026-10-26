@@ -1,7 +1,7 @@
 {
-  "version": "1.1.7",
-  "build": 25,
-  "message": "만화 목록에서도 이어서 읽기가 됩니다",
+  "version": "1.1.8",
+  "build": 26,
+  "message": "저장한 만화만 보입니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

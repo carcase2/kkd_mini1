@@ -32,7 +32,6 @@ import '../widgets/migrate_site_dialog.dart';
 import '../widgets/series_cover.dart';
 import '../widgets/status_banner.dart';
 import '../widgets/theme_toggle_button.dart';
-import '../widgets/live_catalog.dart';
 import '../widgets/network_status_chip.dart';
 import '../services/theme_mode_service.dart';
 import '../models/chapter.dart';
@@ -71,9 +70,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String _searchQuery = '';
   bool _showEmptyChaptersOnly = false;
   bool _showFavoritesOnly = false;
-
-  /// 사이트 목록. 만화를 하나 골라도 이 화면을 서재 한 권으로 바꾸지 않습니다.
-  bool _showSiteCatalog = true;
   DateTime? _lastBackupAt;
   int? _lastBackupSeriesCount;
   final List<_SeriesDownloadJob> _downloadJobs = [];
@@ -488,14 +484,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                 icon: const Icon(Icons.visibility_outlined),
                                 label: const Text('보이는 만화 추가'),
                               ),
-                              FilledButton.tonalIcon(
-                                onPressed: () {
-                                  Navigator.pop(sheetContext);
-                                  unawaited(_openBrowseCatalog());
-                                },
-                                icon: const Icon(Icons.explore_outlined),
-                                label: const Text('다른 만화 추가'),
-                              ),
+
                             ],
                           ),
                           if (active.isNotEmpty) ...[
@@ -1209,11 +1198,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ),
                 section('가져오기'),
                 ListTile(
-                  leading: const Icon(Icons.explore_outlined),
-                  title: const Text('만화 찾기'),
-                  onTap: () => close('browse'),
-                ),
-                ListTile(
                   leading: const Icon(Icons.add_rounded),
                   title: const Text('링크로 추가'),
                   onTap: () => close('add'),
@@ -1359,9 +1343,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
       case 'migrate':
         await _showMigrateSiteDialog();
         break;
-      case 'browse':
-        await _openBrowseCatalog();
-        break;
       case 'archive_all':
         await _downloadBatch(allSeries: true);
         break;
@@ -1378,11 +1359,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final input = await showAddSeriesDialog(context);
     if (input == null || !mounted) return;
     await _addSeries(input);
-  }
-
-  Future<void> _openBrowseCatalog() async {
-    if (!mounted) return;
-    setState(() => _showSiteCatalog = true);
   }
 
   /// 목록에서 고른 만화는 즐겨찾기에 남깁니다.
@@ -1646,23 +1622,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
       }
     }
     return null;
-  }
-
-  Widget? _continueBanner() {
-    final cont = _globalContinueTarget();
-    if (cont == null) return null;
-    final canOpen = !_loading && !_hasSelection;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: _ContinueReadingBanner(
-        series: cont.series,
-        chapter: cont.chapter,
-        nextAfterCompleted: cont.nextAfterCompleted,
-        enabled: canOpen,
-        onContinue: () => unawaited(_continueReading()),
-        onOpenSeries: () => unawaited(_openSeries(cont.series)),
-      ),
-    );
   }
 
   void _openRecent(Series series) {
@@ -1936,7 +1895,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               )
             : null,
       ),
-      floatingActionButton: _showSiteCatalog ? null : _libraryFab(),
+      floatingActionButton: _libraryFab(),
       // 큐 다운로드는 상단 배너/시트로, 목록 새로고침 등만 하단 진행 표시.
       bottomNavigationBar: _loading && !_queueRunning && _fetchStatus != null
           ? FetchProgressDock(status: _fetchStatus!, onCancel: _cancelFetch)
@@ -1948,62 +1907,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               onClear: _clearSelection,
             )
           : null,
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: SegmentedButton<bool>(
-                showSelectedIcon: false,
-                segments: [
-                  const ButtonSegment(value: true, label: Text('만화 목록')),
-                  ButtonSegment(
-                    value: false,
-                    label: Text(
-                      _seriesList.isEmpty
-                          ? '내 서재'
-                          : '내 서재 ${_seriesList.length}',
-                    ),
-                  ),
-                ],
-                selected: {_showSiteCatalog},
-                onSelectionChanged: (next) {
-                  setState(() => _showSiteCatalog = next.first);
-                },
-              ),
-            ),
-          ),
-          Expanded(
-            child: _showSiteCatalog
-                ? Column(
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
-                        child: OfflineBanner(),
-                      ),
-                      if (_syncMessage != null)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                          child: StatusBanner(
-                            message: _syncMessage!,
-                            onDismiss: () =>
-                                setState(() => _syncMessage = null),
-                          ),
-                        ),
-                      ?_continueBanner(),
-                      Expanded(
-                        child: LiveCatalog(
-                          key: const ValueKey('site-catalog'),
-                          siteOrigin: _storage.siteOrigin,
-                          onOpen: (work) => _addSeries(
-                            AddSeriesInput(url: work.url, title: work.title),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                : RefreshIndicator(
+      body: RefreshIndicator(
         onRefresh: _requestRefresh,
         child: CustomScrollView(
           controller: _scrollController,
@@ -2182,7 +2086,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 child: _EmptyLibrary(
                   cloudMissing: !SupabaseSyncService.instance.isLoggedIn,
                   onAdd: _showAddDialog,
-                  onBrowse: _openBrowseCatalog,
                 ),
               )
             else if (visibleSeries.isEmpty)
@@ -2222,35 +2125,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ],
         ),
       ),
-          ),
-        ],
-      ),
     );
   }
 
   Widget? _libraryFab() {
-    final showBrowse = !_hasSelection && !(_loading && !_queueRunning);
-    if (!_showScrollTop && !showBrowse) return null;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        if (_showScrollTop)
-          FloatingActionButton.small(
-            heroTag: 'library-scroll-top',
-            tooltip: '맨 위로',
-            onPressed: _scrollLibraryToTop,
-            child: const Icon(Icons.keyboard_arrow_up_rounded),
-          ),
-        if (_showScrollTop && showBrowse) const SizedBox(height: 12),
-        if (showBrowse)
-          FloatingActionButton.extended(
-            heroTag: 'library-browse',
-            onPressed: _openBrowseCatalog,
-            icon: const Icon(Icons.explore_outlined),
-            label: const Text('만화 찾기'),
-          ),
-      ],
+    if (!_showScrollTop) return null;
+    return FloatingActionButton.small(
+      heroTag: 'library-scroll-top',
+      tooltip: '맨 위로',
+      onPressed: _scrollLibraryToTop,
+      child: const Icon(Icons.keyboard_arrow_up_rounded),
     );
   }
 
@@ -2380,12 +2264,10 @@ class _EmptyLibrary extends StatelessWidget {
   const _EmptyLibrary({
     required this.cloudMissing,
     required this.onAdd,
-    required this.onBrowse,
   });
 
   final bool cloudMissing;
   final VoidCallback onAdd;
-  final VoidCallback onBrowse;
 
   @override
   Widget build(BuildContext context) {
@@ -2406,7 +2288,7 @@ class _EmptyLibrary extends StatelessWidget {
           Text(
             cloudMissing
                 ? '만화 클라우드에 로그인되어 있지 않습니다. 모드 화면에서 만화 로그인을 다시 해 주세요.'
-                : '만화 찾기 또는 링크로 추가해 보세요',
+                : '링크로 만화를 추가해 보세요',
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
@@ -2417,12 +2299,6 @@ class _EmptyLibrary extends StatelessWidget {
             onPressed: onAdd,
             icon: const Icon(Icons.add_rounded),
             label: const Text('링크로 추가'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: onBrowse,
-            icon: const Icon(Icons.explore_outlined),
-            label: const Text('만화 찾기'),
           ),
         ],
       ),
