@@ -1805,7 +1805,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               : 'COAD',
         ),
         actions: [
-          if (!_hasSelection) const NetworkStatusChip(),
+          if (!_hasSelection) const NetworkStatusChip(iconOnly: true),
           if (!_hasSelection) const ThemeToggleButton(),
           IconButton(
             onPressed: _showDownloadQueueSheet,

@@ -919,7 +919,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   ],
                 ),
                 actions: const [
-                  NetworkStatusChip(compact: true, light: true),
+                  NetworkStatusChip(compact: true, light: true, iconOnly: true),
                   LockButton(),
                   SizedBox(width: 8),
                 ],

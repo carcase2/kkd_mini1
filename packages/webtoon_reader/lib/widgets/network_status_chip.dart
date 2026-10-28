@@ -3,10 +3,18 @@ import 'package:flutter/material.dart';
 import '../services/connectivity_service.dart';
 
 class NetworkStatusChip extends StatelessWidget {
-  const NetworkStatusChip({super.key, this.compact = false, this.light = false});
+  const NetworkStatusChip({
+    super.key,
+    this.compact = false,
+    this.light = false,
+    this.iconOnly = false,
+  });
 
   final bool compact;
   final bool light;
+
+  /// 앱바에서는 글자 없이 아이콘만 둔다. 제목 칸을 글자 '온라인'이 먹지 않게.
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -41,33 +49,47 @@ class NetworkStatusChip extends StatelessWidget {
               },
               child: Container(
                 padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 8 : 10,
-                  vertical: compact ? 4 : 6,
+                  horizontal: iconOnly ? 6 : (compact ? 8 : 10),
+                  vertical: iconOnly ? 6 : (compact ? 4 : 6),
                 ),
                 decoration: BoxDecoration(
                   color: bg,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      online
-                          ? Icons.cloud_done_outlined
-                          : Icons.cloud_off_outlined,
-                      size: 15,
-                      color: fg,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      net.statusLabel,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                child: iconOnly
+                    ? Tooltip(
+                        message: net.statusLabel,
+                        child: Icon(
+                          online
+                              ? Icons.cloud_done_outlined
+                              : Icons.cloud_off_outlined,
+                          size: 18,
+                          color: fg,
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            online
+                                ? Icons.cloud_done_outlined
+                                : Icons.cloud_off_outlined,
+                            size: 15,
                             color: fg,
-                            fontWeight: FontWeight.w700,
                           ),
-                    ),
-                  ],
-                ),
+                          const SizedBox(width: 4),
+                          Text(
+                            net.statusLabel,
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: fg,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
               ),
             ),
           ),

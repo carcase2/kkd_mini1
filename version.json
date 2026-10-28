@@ -1,7 +1,7 @@
 {
-  "version": "1.1.9",
-  "build": 27,
-  "message": "클라우드에 저장된 이어 읽기를 엽니다",
+  "version": "1.1.10",
+  "build": 28,
+  "message": "만화 제목이 끝까지 보입니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

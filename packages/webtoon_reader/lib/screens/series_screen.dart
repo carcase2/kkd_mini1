@@ -1481,19 +1481,18 @@ class _SeriesScreenState extends State<SeriesScreen> with RouteAware {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                _series.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        centerTitle: false,
+        title: Text(
+          _series.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            height: 1.15,
+          ),
         ),
         actions: [
-          if (!_loading) const NetworkStatusChip(),
+          if (!_loading) const NetworkStatusChip(iconOnly: true),
           if (!_loading) const ThemeToggleButton(),
           if (_loading)
             IconButton(
@@ -1501,14 +1500,12 @@ class _SeriesScreenState extends State<SeriesScreen> with RouteAware {
               icon: const Icon(Icons.downloading_rounded),
               tooltip: '다운로드 상태',
             ),
-          IconButton(
-            onPressed: _loading ? null : _refreshList,
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: '회차 목록 새로고침',
-          ),
           PopupMenuButton<String>(
             onSelected: (value) {
               switch (value) {
+                case 'refresh':
+                  if (!_loading) _refreshList();
+                  break;
                 case 'edit_title':
                   _editTitle();
                   break;
@@ -1539,6 +1536,15 @@ class _SeriesScreenState extends State<SeriesScreen> with RouteAware {
               }
             },
             itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'refresh',
+                enabled: !_loading,
+                child: const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.refresh_rounded),
+                  title: Text('회차 목록 새로고침'),
+                ),
+              ),
               if (_undownloadedCount > 0)
                 PopupMenuItem(
                   value: 'archive_all',
@@ -2165,10 +2171,20 @@ class _SeriesStatsCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    total == 0 ? '회차 목록 없음' : '$total화',
+                    series.title,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.4,
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    total == 0 ? '회차 목록 없음' : '$total화',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
                       height: 1.1,
                     ),
                   ),

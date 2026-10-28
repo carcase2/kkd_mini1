@@ -192,7 +192,15 @@ class ModeFrame extends StatelessWidget {
               ),
             ),
           ),
-        Expanded(child: child),
+        // 모드 전환 줄이 이미 상태 표시줄 아래에 있다.
+        // 자식 Scaffold가 padding.top을 한 번 더 더하면 그 사이에 빈칸이 생긴다.
+        Expanded(
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: child,
+          ),
+        ),
       ],
     );
   }
