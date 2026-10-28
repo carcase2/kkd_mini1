@@ -88,51 +88,53 @@ class ModePickerScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _retry(BuildContext context, AppMode mode) async {
-    final email = DualAuth.instance.email ?? await _savedEmail();
-    if (!context.mounted) return;
-    final password = await showDialog<String>(
-      context: context,
-      builder: (ctx) => _RetryDialog(
-        title: mode == AppMode.discipline ? '절제 다시 로그인' : '만화 다시 로그인',
-        email: email ?? '',
-      ),
-    );
-    if (password == null || password.isEmpty || email == null) return;
-    await DualAuth.instance.signInSide(
-      mode,
-      email: email,
-      password: password,
-    );
-    if (!context.mounted) return;
-    final auth = DualAuth.instance;
-    final ok = mode == AppMode.discipline
-        ? auth.disciplineLoggedIn
-        : auth.webtoonLoggedIn;
-    if (ok && mode == AppMode.discipline) {
-      await context.read<AppState>().syncCloud();
-    }
+  Future<void> _retry(BuildContext context, AppMode mode) {
+    return retryModeLogin(context, mode);
   }
+}
 
-  Future<String?> _savedEmail() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('last_login_email');
+Future<void> retryModeLogin(BuildContext context, AppMode mode) async {
+  final email = DualAuth.instance.email ?? await _savedLoginEmail();
+  if (!context.mounted) return;
+  final password = await showDialog<String>(
+    context: context,
+    builder: (ctx) => _RetryDialog(
+      title: mode == AppMode.discipline ? '절제 다시 로그인' : '만화 다시 로그인',
+      email: email ?? '',
+    ),
+  );
+  if (password == null || password.isEmpty || email == null) return;
+  await DualAuth.instance.signInSide(mode, email: email, password: password);
+  if (!context.mounted) return;
+  final auth = DualAuth.instance;
+  final ok = mode == AppMode.discipline
+      ? auth.disciplineLoggedIn
+      : auth.webtoonLoggedIn;
+  if (ok && mode == AppMode.discipline) {
+    await context.read<AppState>().syncCloud();
   }
+}
+
+Future<String?> _savedLoginEmail() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString('last_login_email');
 }
 
 class ModeFrame extends StatelessWidget {
   const ModeFrame({
     super.key,
-    required this.title,
-    required this.onSwitch,
+    required this.mode,
+    required this.onSelect,
     required this.child,
     this.notice,
+    this.onNotice,
   });
 
-  final String title;
-  final VoidCallback onSwitch;
+  final AppMode mode;
+  final ValueChanged<AppMode> onSelect;
   final Widget child;
   final String? notice;
+  final VoidCallback? onNotice;
 
   @override
   Widget build(BuildContext context) {
@@ -143,28 +145,32 @@ class ModeFrame extends StatelessWidget {
           color: c.surface,
           child: SafeArea(
             bottom: false,
-            child: SizedBox(
-              height: 44,
-              child: Row(
-                children: [
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: onSwitch,
-                    icon: const Icon(Icons.swap_horiz_rounded, size: 20),
-                    label: const Text('모드 전환'),
-                  ),
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16),
-                    child: Text(
-                      title,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: c.textSecondary,
-                      ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: c.border)),
+              ),
+              child: SizedBox(
+                height: 44,
+                child: Row(
+                  children: [
+                    _ModeTab(
+                      label: '절제',
+                      icon: Icons.shield_outlined,
+                      selectedIcon: Icons.shield_rounded,
+                      selected: mode == AppMode.discipline,
+                      color: c.fasting,
+                      onTap: () => onSelect(AppMode.discipline),
                     ),
-                  ),
-                ],
+                    _ModeTab(
+                      label: '만화',
+                      icon: Icons.menu_book_outlined,
+                      selectedIcon: Icons.menu_book_rounded,
+                      selected: mode == AppMode.webtoon,
+                      color: c.reading,
+                      onTap: () => onSelect(AppMode.webtoon),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -173,7 +179,7 @@ class ModeFrame extends StatelessWidget {
           Material(
             color: c.warning.withValues(alpha: 0.15),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
               child: Row(
                 children: [
                   Icon(Icons.cloud_off_rounded, size: 18, color: c.warning),
@@ -188,11 +194,16 @@ class ModeFrame extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (onNotice != null)
+                    TextButton(
+                      onPressed: onNotice,
+                      child: const Text('다시 로그인'),
+                    ),
                 ],
               ),
             ),
           ),
-        // 모드 전환 줄이 이미 상태 표시줄 아래에 있다.
+        // 탭 줄이 이미 상태 표시줄 아래에 있다.
         // 자식 Scaffold가 padding.top을 한 번 더 더하면 그 사이에 빈칸이 생긴다.
         Expanded(
           child: MediaQuery.removePadding(
@@ -202,6 +213,84 @@ class ModeFrame extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ModeTab extends StatelessWidget {
+  const _ModeTab({
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppPalette.of(context);
+    final fg = selected ? color : c.textSecondary;
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: label,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(9),
+            onTap: () {
+              if (selected) return;
+              HapticFeedback.selectionClick();
+              onTap();
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected
+                    ? color.withValues(alpha: 0.12)
+                    : Colors.transparent,
+                border: Border(
+                  bottom: BorderSide(
+                    color: selected ? color : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+              ),
+              child: ExcludeSemantics(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(selected ? selectedIcon : icon, size: 16, color: fg),
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w700,
+                        color: fg,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -345,7 +434,9 @@ class _RetryDialogState extends State<_RetryDialog> {
               suffixIcon: IconButton(
                 onPressed: () => setState(() => _obscure = !_obscure),
                 icon: Icon(
-                  _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                  _obscure
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
                 ),
               ),
             ),

@@ -1,7 +1,7 @@
 {
-  "version": "1.1.10",
-  "build": 28,
-  "message": "만화 제목이 끝까지 보입니다",
+  "version": "1.1.11",
+  "build": 29,
+  "message": "위에 절제와 만화 탭이 있습니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",

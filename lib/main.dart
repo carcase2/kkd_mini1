@@ -44,18 +44,11 @@ Future<void> main() async {
   LockService.hostLock = appState.lockApp;
   await appState.load();
 
-  AppColors.bind(
-    appState.isDarkMode ? AppPalette.dark : AppPalette.light,
-  );
-  SystemChrome.setSystemUIOverlayStyle(
-    AppTheme.overlay(appState.isDarkMode),
-  );
+  AppColors.bind(appState.isDarkMode ? AppPalette.dark : AppPalette.light);
+  SystemChrome.setSystemUIOverlayStyle(AppTheme.overlay(appState.isDarkMode));
 
   runApp(
-    ChangeNotifierProvider.value(
-      value: appState,
-      child: const DisciplineApp(),
-    ),
+    ChangeNotifierProvider.value(value: appState, child: const DisciplineApp()),
   );
 }
 
@@ -156,22 +149,22 @@ class _DisciplineAppState extends State<DisciplineApp>
       home = LoginScreen(onLoggedIn: _onLoggedIn);
     } else if (locked) {
       home = const LockScreen();
-    } else if (_mode == null) {
-      home = ModePickerScreen(
-        onSelect: (mode) => setState(() => _mode = mode),
-      );
-    } else if (_mode == AppMode.discipline) {
-      home = ModeFrame(
-        title: '절제',
-        notice: auth.disciplineLoggedIn ? null : auth.disciplineError,
-        onSwitch: () => setState(() => _mode = null),
-        child: const AppShell(),
-      );
     } else {
+      final mode = _mode ?? AppMode.discipline;
+      final disciplineNotice =
+          mode == AppMode.discipline && !auth.disciplineLoggedIn
+          ? auth.disciplineError
+          : null;
       home = ModeFrame(
-        title: '만화',
-        onSwitch: () => setState(() => _mode = null),
-        child: auth.webtoonLoggedIn
+        mode: mode,
+        notice: disciplineNotice,
+        onNotice: disciplineNotice == null
+            ? null
+            : () => unawaited(retryModeLogin(context, AppMode.discipline)),
+        onSelect: (next) => setState(() => _mode = next),
+        child: mode == AppMode.discipline
+            ? const AppShell()
+            : auth.webtoonLoggedIn
             ? const WebtoonApp()
             : const WebtoonCloudGate(),
       );
@@ -187,7 +180,8 @@ class _DisciplineAppState extends State<DisciplineApp>
           darkTheme: AppTheme.dark,
           themeMode: themeMode,
           builder: (context, child) {
-            final palette = Theme.of(context).extension<AppPalette>() ??
+            final palette =
+                Theme.of(context).extension<AppPalette>() ??
                 (isDark ? AppPalette.dark : AppPalette.light);
             AppColors.bind(palette);
             SystemChrome.setSystemUIOverlayStyle(AppTheme.overlay(isDark));
