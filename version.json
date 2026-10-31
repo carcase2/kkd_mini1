@@ -1,7 +1,7 @@
 {
-  "version": "1.1.12",
-  "build": 30,
-  "message": "위에 절제와 만화 탭이 있습니다",
+  "version": "1.1.13",
+  "build": 31,
+  "message": "단식 기록이 채팅과 같아집니다",
   "force": false,
   "apkUrl": "",
   "playStoreUrl": "https://play.google.com/store/apps/details?id=com.kkd.discipline_tracker",
