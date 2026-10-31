@@ -11,6 +11,10 @@ class TrackingSession {
   final SessionStatus status;
   final String? note;
 
+  /// 화면 표시용. 백업 JSON에는 넣지 않는다.
+  /// 단식은 `app`(이 앱) 또는 `chat`(채팅).
+  final String? origin;
+
   const TrackingSession({
     required this.id,
     required this.type,
@@ -19,6 +23,7 @@ class TrackingSession {
     this.targetDuration,
     required this.status,
     this.note,
+    this.origin,
   });
 
   bool get isOpenEnded => targetDuration == null;
@@ -57,6 +62,7 @@ class TrackingSession {
     bool clearTarget = false,
     SessionStatus? status,
     String? note,
+    String? origin,
   }) {
     return TrackingSession(
       id: id ?? this.id,
@@ -66,6 +72,7 @@ class TrackingSession {
       targetDuration: clearTarget ? null : (targetDuration ?? this.targetDuration),
       status: status ?? this.status,
       note: note ?? this.note,
+      origin: origin ?? this.origin,
     );
   }
 

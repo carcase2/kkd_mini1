@@ -86,6 +86,17 @@ class SessionHistoryTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (session.origin == 'chat') ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '채팅',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

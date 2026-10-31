@@ -88,8 +88,9 @@ class TrackingScreen extends StatelessWidget {
                         onStartNow: () => _startNow(context),
                         onStartPast: () => _startPast(context),
                       ),
-                onDeleteHistory: (id) =>
-                    context.read<AppState>().deleteSession(id),
+                onDeleteHistory: isFasting
+                    ? null
+                    : (id) => context.read<AppState>().deleteSession(id),
               ),
       ),
     );
@@ -265,6 +266,13 @@ class _ActiveView extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (session.origin == 'chat') ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '채팅에서 시작된 단식',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  ),
+                ],
                 if (isFasting) ...[
                   const SizedBox(height: 20),
                   FastingStageCard(
@@ -567,7 +575,7 @@ class _IdleView extends StatelessWidget {
   final List<TrackingSession> history;
   final String emptyHistory;
   final Widget startCard;
-  final void Function(String id) onDeleteHistory;
+  final void Function(String id)? onDeleteHistory;
 
   const _IdleView({
     required this.title,
@@ -715,7 +723,9 @@ class _IdleView extends StatelessWidget {
                   return SessionHistoryTile(
                     session: s,
                     accent: accent,
-                    onDelete: () => onDeleteHistory(s.id),
+                    onDelete: onDeleteHistory == null
+                        ? null
+                        : () => onDeleteHistory!(s.id),
                   );
                 },
                 childCount: history.length,

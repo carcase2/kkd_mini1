@@ -4,10 +4,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../models/book.dart';
+import '../models/fasting_log.dart';
 import '../models/habit.dart';
 import '../models/medication.dart';
 import '../models/session.dart';
 import '../services/backup_service.dart';
+import '../services/fasting_log_repository.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../services/supabase_sync_service.dart';
@@ -15,8 +17,10 @@ import '../services/supabase_sync_service.dart';
 class AppState extends ChangeNotifier {
   final StorageService _storage = StorageService();
   final SupabaseSyncService _cloud = SupabaseSyncService.instance;
+  final FastingLogRepository _fasting = FastingLogRepository.supabase();
 
   List<TrackingSession> _sessions = [];
+  List<FastingLog> _fastingLogs = [];
   List<MasturbationLog> _masturbationLogs = [];
   List<Medication> _medications = [];
   List<MedicationDose> _medicationDoses = [];
@@ -89,13 +93,14 @@ class AppState extends ChangeNotifier {
   // ── Active sessions ──────────────────────────────────────────
 
   TrackingSession? get activeFasting {
-    try {
-      return _sessions.firstWhere(
-        (s) => s.type == SessionType.fasting && s.status == SessionStatus.active,
-      );
-    } catch (_) {
-      return null;
+    FastingLog? active;
+    for (final log in _fastingLogs) {
+      if (log.status != SessionStatus.active) continue;
+      if (active == null || log.startAt.isAfter(active.startAt)) {
+        active = log;
+      }
     }
+    return active?.toSession();
   }
 
   TrackingSession? get activeAbstinence {
@@ -113,11 +118,11 @@ class AppState extends ChangeNotifier {
   // ── Stats: Fasting ───────────────────────────────────────────
 
   List<TrackingSession> get fastingHistory {
-    final list = _sessions
+    final list = _fastingLogs
         .where((s) =>
-            s.type == SessionType.fasting &&
             s.status != SessionStatus.active &&
             s.status != SessionStatus.cancelled)
+        .map((s) => s.toSession())
         .toList();
     list.sort((a, b) => b.startTime.compareTo(a.startTime));
     return list;
@@ -676,28 +681,35 @@ class AppState extends ChangeNotifier {
     // 활성 세션 알림 재예약 (지난 완료 시각이면 즉시 알림)
     if (_sessionNotificationsEnabled) {
       await NotificationService.instance.requestPermission();
-      await NotificationService.instance.rescheduleActiveSessions(_sessions);
+      await _rescheduleAlarms();
     }
 
     await syncCloud();
     await _ensureStarterHabits();
   }
 
-  /// 로그인 직후·앱 시작 시 클라우드와 맞춤
+  /// 로그인 직후·앱 시작 시 클라우드와 맞춤.
+  /// 단식은 app_data 와 따로 fasting_log 에서 항상 다시 읽는다.
   Future<void> syncCloud() async {
     if (!_cloudSyncEnabled) return;
+    final beforeFasting = _fastingFingerprint(_fastingLogs);
+    var applied = false;
     try {
-      final applied = await _cloud.syncAfterLocalLoad(_storage);
+      applied = await _cloud.syncAfterLocalLoad(_storage);
       if (applied) {
         await _loadFromStorage();
-        notifyListeners();
-        if (_sessionNotificationsEnabled) {
-          await NotificationService.instance
-              .rescheduleActiveSessions(_sessions);
-        }
       }
     } catch (_) {
-      // 오프라인이면 무시
+      // 오프라인이면 app_data 는 그대로 둔다
+    }
+    try {
+      _fastingLogs = await _fasting.refresh();
+    } catch (e, st) {
+      debugPrint('Fasting refresh failed: $e\n$st');
+    }
+    if (applied || _fastingFingerprint(_fastingLogs) != beforeFasting) {
+      notifyListeners();
+      await _rescheduleAlarms();
     }
   }
 
@@ -710,9 +722,7 @@ class AppState extends ChangeNotifier {
     }
     await _loadFromStorage();
     notifyListeners();
-    if (_sessionNotificationsEnabled) {
-      await NotificationService.instance.rescheduleActiveSessions(_sessions);
-    }
+    await _rescheduleAlarms();
   }
 
   Future<void> _loadFromStorage() async {
@@ -744,6 +754,11 @@ class AppState extends ChangeNotifier {
     _sessionNotificationsEnabled =
         await _storage.loadSessionNotificationsEnabled();
     NotificationService.instance.setEnabled(_sessionNotificationsEnabled);
+    try {
+      _fastingLogs = await _fasting.readDisplay();
+    } catch (e, st) {
+      debugPrint('Fasting cache load failed: $e\n$st');
+    }
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -783,8 +798,7 @@ class AppState extends ChangeNotifier {
 
   /// 포그라운드 복귀 시 놓친 완료 알림 보완 + 예약 재확인
   Future<void> onAppResumed() async {
-    if (!_sessionNotificationsEnabled) return;
-    await NotificationService.instance.rescheduleActiveSessions(_sessions);
+    await _rescheduleAlarms();
   }
 
   /// PIN 검증 후 잠금 해제. 성공 여부 반환.
@@ -917,6 +931,13 @@ class AppState extends ChangeNotifier {
     _cloudSyncDebounce?.cancel();
     _cloudSyncDebounce = null;
     await _pushCloudNow();
+    try {
+      _fastingLogs = await _fasting.refresh();
+      notifyListeners();
+      await _rescheduleAlarms();
+    } catch (e, st) {
+      debugPrint('Fasting flush failed: $e\n$st');
+    }
   }
 
   Future<void> _pushCloudNow() async {
@@ -941,7 +962,7 @@ class AppState extends ChangeNotifier {
       await NotificationService.instance.requestPermission(
         requestExactAlarm: true,
       );
-      await NotificationService.instance.rescheduleActiveSessions(_sessions);
+      await _rescheduleAlarms();
     } else {
       await NotificationService.instance.cancelAllSessionAlarms();
     }
@@ -1109,6 +1130,62 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  List<TrackingSession> _alarmSessions() {
+    return [
+      ..._sessions.where((s) => s.type != SessionType.fasting),
+      for (final log in _fastingLogs)
+        if (log.status == SessionStatus.active) log.toSession(),
+    ];
+  }
+
+  Future<void> _rescheduleAlarms() async {
+    if (!_sessionNotificationsEnabled) return;
+    await NotificationService.instance
+        .rescheduleActiveSessions(_alarmSessions());
+  }
+
+  String _fastingFingerprint(List<FastingLog> logs) {
+    final copy = [...logs]..sort((a, b) => a.sessionId.compareTo(b.sessionId));
+    return copy
+        .map(
+          (log) =>
+              '${log.sessionId}|${log.status.name}|${log.startAt.toUtc().toIso8601String()}|${log.endAt?.toUtc().toIso8601String()}|${log.source}',
+        )
+        .join(';');
+  }
+
+  FastingLog? _fastingBySession(String id) {
+    for (final log in _fastingLogs) {
+      if (log.sessionId == id) return log;
+    }
+    return null;
+  }
+
+  bool _isLegacyFastingSession(String id) {
+    return _sessions.any(
+      (s) => s.id == id && s.type == SessionType.fasting,
+    );
+  }
+
+  Future<bool> _finishFasting(String id, SessionStatus status) async {
+    final log = _fastingBySession(id);
+    if (log == null) return false;
+    if (log.status != SessionStatus.active) return true;
+    final end = DateTime.now();
+    try {
+      _fastingLogs = await _fasting.finish(
+        sessionId: id,
+        status: status,
+        endAt: end.isBefore(log.startAt) ? log.startAt : end,
+      );
+    } catch (e, st) {
+      debugPrint('Fasting finish failed: $e\n$st');
+    }
+    await NotificationService.instance.cancelForType(SessionType.fasting);
+    notifyListeners();
+    return true;
+  }
+
   // ── Session actions ──────────────────────────────────────────
 
   Future<void> startSession({
@@ -1137,6 +1214,26 @@ class AppState extends ChangeNotifier {
       start = now;
     }
 
+    if (type == SessionType.fasting) {
+      try {
+        _fastingLogs = await _fasting.start(
+          startAt: start,
+          targetMinutes: fastingTargetMinutes(targetDuration),
+        );
+      } catch (e, st) {
+        debugPrint('Fasting start failed: $e\n$st');
+      }
+      final active = activeFasting;
+      if (active != null && _sessionNotificationsEnabled) {
+        await NotificationService.instance.requestPermission(
+          requestExactAlarm: true,
+        );
+        await NotificationService.instance.scheduleSessionMilestones(active);
+      }
+      notifyListeners();
+      return;
+    }
+
     final session = TrackingSession(
       id: now.microsecondsSinceEpoch.toString(),
       type: type,
@@ -1156,6 +1253,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> completeSession(String id) async {
+    if (await _finishFasting(id, SessionStatus.completed)) return;
+    if (_isLegacyFastingSession(id)) return;
     final idx = _sessions.indexWhere((s) => s.id == id);
     if (idx < 0) return;
     final s = _sessions[idx];
@@ -1171,6 +1270,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> failSession(String id) async {
+    if (await _finishFasting(id, SessionStatus.failed)) return;
+    if (_isLegacyFastingSession(id)) return;
     final idx = _sessions.indexWhere((s) => s.id == id);
     if (idx < 0) return;
     final s = _sessions[idx];
@@ -1186,7 +1287,15 @@ class AppState extends ChangeNotifier {
   }
 
   /// 단식·금욕은 경과 시간으로 기록하고 항상 완료로 저장한다.
+  /// 단식 완료는 fasting_log 의 active 행만 갱신한다.
   Future<SessionStatus?> endSession(String id) async {
+    final fasting = _fastingBySession(id);
+    if (fasting != null) {
+      if (fasting.status != SessionStatus.active) return null;
+      await _finishFasting(id, SessionStatus.completed);
+      return SessionStatus.completed;
+    }
+    if (_isLegacyFastingSession(id)) return null;
     final idx = _sessions.indexWhere((s) => s.id == id);
     if (idx < 0) return null;
     final s = _sessions[idx];
@@ -1204,6 +1313,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> cancelSession(String id) async {
+    if (await _finishFasting(id, SessionStatus.cancelled)) return;
+    if (_isLegacyFastingSession(id)) return;
     final idx = _sessions.indexWhere((s) => s.id == id);
     if (idx < 0) return;
     final s = _sessions[idx];
@@ -1219,6 +1330,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> deleteSession(String id) async {
+    // fasting_log 는 delete 가 없다. 예전 app_data 단식도 여기서 지우지 않는다.
+    if (_fastingBySession(id) != null || _isLegacyFastingSession(id)) return;
     _sessions.removeWhere((s) => s.id == id);
     await _persistSessions();
     notifyListeners();

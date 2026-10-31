@@ -431,6 +431,9 @@ class StorageService {
   ///
   /// - `exportedAt`: 이 백업 파일을 만든 시각 (표시·파일용)
   /// - `dataRevisedAt`: 실제 데이터 수정 시각 (기기 간 동기화 비교용)
+  ///
+  /// 새 단식은 public.fasting_log 에만 둔다. sessions 에 남아 있는 예전 단식은
+  /// 그대로 두고 표로 옮기지 않는다.
   Future<Map<String, dynamic>> exportBackup() async {
     final prefs = await SharedPreferences.getInstance();
     var revisedRaw = prefs.getString(_dataRevisedAtKey);

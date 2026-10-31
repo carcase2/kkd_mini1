@@ -5,6 +5,9 @@ import 'storage_service.dart';
 
 /// 이메일 로그인 사용자별 app_data JSON 동기화.
 /// 클라이언트는 껍데기(DualAuth)가 만들어 attach 합니다.
+///
+/// 단식은 이 payload에 새로 넣지 않는다. 진행·기록은 public.fasting_log 가
+/// 담당하고, sessions 안에 남아 있는 예전 단식은 옮기지 않은 채 둔다.
 class SupabaseSyncService {
   SupabaseSyncService._();
   static final instance = SupabaseSyncService._();
@@ -24,6 +27,14 @@ class SupabaseSyncService {
   }
 
   User? get currentUser => _attached?.auth.currentUser;
+
+  /// 로그인된 본인 세션으로만 테이블을 부른다. 익명·미연결이면 null.
+  SupabaseClient? get loggedInClient {
+    if (!isReady || !isLoggedIn) return null;
+    return _attached;
+  }
+
+  String? get userId => isLoggedIn ? currentUser?.id : null;
 
   bool get isLoggedIn {
     final user = currentUser;
